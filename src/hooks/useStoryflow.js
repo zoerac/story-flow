@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { AI_CHAT, AI_DRAG, INIT, cloneSections, pick } from "../data/mock";
+import { AI_CHAT, INIT, cloneSections, pick } from "../data/mock";
+import { applyIntent, parseIntent, polishOnMerge, polishOnReorder } from "../lib/refineEngine";
 
 export function useStoryflow() {
   const [secs, setSecs] = useState(() => cloneSections(INIT));
@@ -34,8 +35,8 @@ export function useStoryflow() {
     setTimeout(() => chatEnd.current?.scrollIntoView({ behavior: "smooth" }), 80);
   };
 
-  const addMsg = (from, text) => {
-    setMsgs((prev) => [...prev, { from, text }]);
+  const addMsg = (from, text, action) => {
+    setMsgs((prev) => [...prev, { from, text, ...(action ? { action } : {}) }]);
     scroll();
   };
 
@@ -66,17 +67,55 @@ export function useStoryflow() {
       return;
     }
 
-    const next = cloneSections(secs);
-    const [mv] = next.splice(dragI, 1);
-    next.splice(to, 0, mv);
+    const reordered = cloneSections(secs);
+    const [mv] = reordered.splice(dragI, 1);
+    reordered.splice(to, 0, mv);
     const dir = to < dragI ? "前移" : "后移";
 
-    commitVersion(`${mv.title}${dir}`, next);
+    // 重排序后实时润色：根据新的上下文重写衔接文案
+    const { sections: polished, summary } = polishOnReorder(reordered, dragI, to);
+    const undoTo = curV;
+    commitVersion(`${mv.title}${dir}`, polished);
     setSel(to);
     setSelPage(0);
     setDragI(null);
     setOverI(null);
-    addMsg("ai", pick(AI_DRAG)(mv.title, dir, to + 1));
+    addMsg("ai", summary, { label: "撤销本次调整", undoTo });
+  };
+
+  // 章并入章为子页：被拖章的页追加为目标章的子页，源章移除
+  const mergeSection = (fromI, toI) => {
+    if (fromI === null || toI === null || fromI === toI) {
+      setDragI(null);
+      setOverI(null);
+      return;
+    }
+    const from = secs[fromI];
+    const to = secs[toI];
+    if (!from || !to) {
+      setDragI(null);
+      setOverI(null);
+      return;
+    }
+
+    const next = cloneSections(secs);
+    const insertAt = next[toI].pages.length;
+    const existingIds = new Set(next[toI].pages.map((p) => p.id));
+    const moved = next[fromI].pages.map((p) =>
+      existingIds.has(p.id) ? { ...p, id: `${p.id}-m` } : p,
+    );
+    next[toI].pages = [...next[toI].pages, ...moved];
+    next.splice(fromI, 1);
+    const newToI = fromI < toI ? toI - 1 : toI;
+
+    const { sections: polished, summary } = polishOnMerge(next, newToI, insertAt, from.title);
+    const undoTo = curV;
+    commitVersion(`${from.title} 并入 ${to.title}`, polished);
+    setSel(newToI);
+    setSelPage(0);
+    setDragI(null);
+    setOverI(null);
+    addMsg("ai", summary, { label: "撤销合并", undoTo });
   };
 
   const restore = (vid) => {
@@ -145,9 +184,30 @@ export function useStoryflow() {
 
     addMsg("user", val);
     setThinking(true);
+
+    const { type, label } = parseIntent(val);
     setTimeout(() => {
       setThinking(false);
-      addMsg("ai", pick(AI_CHAT));
+      // 非指令型对话回退到闲聊
+      if (type === "chat") {
+        addMsg("ai", pick(AI_CHAT));
+        return;
+      }
+      // 指令型：应用变换并自动入版本树，附撤销入口
+      const { sections: polished, summary } = applyIntent(secs, type, { text: val });
+      if (!summary) {
+        addMsg("ai", pick(AI_CHAT));
+        return;
+      }
+      // 实际未改动（如未找到可前移的结论章）则只反馈、不入树、不给撤销
+      const changed = JSON.stringify(polished) !== JSON.stringify(secs);
+      if (!changed) {
+        addMsg("ai", summary);
+        return;
+      }
+      const undoTo = curV;
+      commitVersion(`AI·${label}`, polished, { stage: "refine", kind: "refine" });
+      addMsg("ai", summary, { label: "撤销本次改写", undoTo });
     }, 600 + Math.random() * 500);
   };
 
@@ -166,6 +226,7 @@ export function useStoryflow() {
     msgs,
     addMsg,
     onDrop,
+    mergeSection,
     restore,
     saveVersion,
     toggleSaved,

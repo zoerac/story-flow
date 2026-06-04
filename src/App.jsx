@@ -159,6 +159,7 @@ function App() {
                   overI={story.overI}
                   setOverI={story.setOverI}
                   onDrop={story.onDrop}
+                  onMergeSection={story.mergeSection}
                   commitVersion={commitStructureVersion}
                 />
               )}
@@ -177,6 +178,12 @@ function App() {
                 send={story.send}
                 thinking={story.thinking}
                 chatEnd={story.chatEnd}
+                restore={handleRestore}
+                dragI={story.dragI}
+                focusedSection={story.focusedSection}
+                setFocusedSection={story.setFocusedSection}
+                addMsg={story.addMsg}
+                secs={story.secs}
               />
             </div>
             <ResizeBar hidden={!layout.rightOpen} onMouseDown={startResize("right")} />
