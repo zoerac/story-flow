@@ -249,16 +249,14 @@ export function VersionTree({ vers, curV, secs, restore, saveVersion, toggleSave
               {sel.ch.length > 0 ? (
                 <div style={{ display: "grid", gap: 6 }}>
                   <button type="button" onClick={() => doDelete("reparent")} style={{ ...actionBtn, width: "100%", background: "#fff", color: "#B23A2E", border: "1px solid #E7B7AE" }}>
-                    <Trash2 size={12} /> 删除·子节点上接父级
+                    <Trash2 size={12} /> 子节点上接父级
                   </button>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button type="button" onClick={() => doDelete("subtree")} style={{ ...actionBtn, flex: 1, background: "#B23A2E", color: "#fff", border: "1px solid #B23A2E" }}>
-                      <Trash2 size={12} /> 删整棵子树
-                    </button>
-                    <button type="button" onClick={() => setDeleting(false)} style={{ ...actionBtn, flex: 1, background: "transparent", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-secondary)" }}>
-                      <X size={12} /> 取消
-                    </button>
-                  </div>
+                  <button type="button" onClick={() => doDelete("subtree")} style={{ ...actionBtn, width: "100%", background: "#B23A2E", color: "#fff", border: "1px solid #B23A2E" }}>
+                    <Trash2 size={12} /> 删除整棵子树
+                  </button>
+                  <button type="button" onClick={() => setDeleting(false)} style={{ ...actionBtn, width: "100%", background: "transparent", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-secondary)" }}>
+                    <X size={12} /> 取消
+                  </button>
                 </div>
               ) : (
                 <div style={{ display: "flex", gap: 6 }}>
@@ -326,6 +324,7 @@ const actionBtn = {
   fontFamily: "inherit",
   fontSize: 11,
   fontWeight: 500,
+  whiteSpace: "nowrap",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
