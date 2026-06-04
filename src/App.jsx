@@ -996,7 +996,12 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
     if (gesture.type === "move") {
       updateLayout(gesture.id, { x: gesture.origin.x + dx, y: gesture.origin.y + dy });
     } else if (gesture.type === "resize") {
-      updateLayout(gesture.id, { w: gesture.origin.w + dx, h: gesture.origin.h + dy });
+      const nextPatch = { w: gesture.origin.w + dx, h: gesture.origin.h + dy };
+      if (isTextMaterial(gesture.id)) {
+        const scale = Math.max(0.7, Math.min(1.8, nextPatch.h / Math.max(1, gesture.origin.h)));
+        nextPatch.fontSize = Math.round((gesture.origin.fontSize || defaultFontSize(gesture.id)) * scale);
+      }
+      updateLayout(gesture.id, nextPatch);
     }
   };
 
@@ -1092,11 +1097,11 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
               >
                 <span style={{ position: "absolute", left: 44, top: 42, width: 64, height: 6, borderRadius: 3, background: curSec?.c }} />
                 <RefineMaterialBox id="title" active={activeId === "title"} layout={layouts.title} onMouseDown={startMaterialMove}>
-                  <div style={{ fontSize: 30, fontWeight: 650, lineHeight: 1.18, color: "var(--color-text-primary)" }}>{displayTitle}</div>
+                  <div style={textMaterialStyle(layouts.title, { fontWeight: 650, lineHeight: 1.18, color: "var(--color-text-primary)" })}>{displayTitle}</div>
                   {activeId === "title" && <button type="button" aria-label="缩放标题文本框" onMouseDown={(e) => startResize(e, "title")} style={resizeHandleStyle} />}
                 </RefineMaterialBox>
                 <RefineMaterialBox id="section" active={activeId === "section"} layout={layouts.section} onMouseDown={startMaterialMove}>
-                  <div style={{ fontSize: 14, color: "var(--color-text-tertiary)" }}>{curSec?.title} · {curSec?.sub}</div>
+                  <div style={textMaterialStyle(layouts.section, { color: "var(--color-text-tertiary)" })}>{curSec?.title} · {curSec?.sub}</div>
                   {activeId === "section" && <button type="button" aria-label="缩放章节说明文本框" onMouseDown={(e) => startResize(e, "section")} style={resizeHandleStyle} />}
                 </RefineMaterialBox>
                 <RefineMaterialBox id="badge" active={activeId === "badge"} layout={layouts.badge} onMouseDown={startMaterialMove}>
@@ -1105,7 +1110,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
                   </div>
                 </RefineMaterialBox>
                 <RefineMaterialBox id="body" active={activeId === "body"} layout={layouts.body} onMouseDown={startMaterialMove}>
-                  <div style={{ fontSize: 17, lineHeight: 1.8, color: "var(--color-text-secondary)" }}>{displayBody}</div>
+                  <div style={textMaterialStyle(layouts.body, { lineHeight: 1.8, color: "var(--color-text-secondary)" })}>{displayBody}</div>
                   {activeId === "body" && <button type="button" aria-label="缩放正文文本框" onMouseDown={(e) => startResize(e, "body")} style={resizeHandleStyle} />}
                 </RefineMaterialBox>
                 <RefineMaterialBox id="visual" active={activeId === "visual"} layout={layouts.visual} onMouseDown={startMaterialMove}>
@@ -1223,7 +1228,18 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
                     intent={selectionDraft}
                     onIntent={setSelectionDraft}
                     layout={layouts[activeId] || layouts.title}
-                    onResize={(delta) => materialCanResize && updateLayout(activeId, { w: layouts[activeId].w + delta.w, h: layouts[activeId].h + delta.h })}
+                    onResize={(delta) => {
+                      if (!materialCanResize) return;
+                      const current = layouts[activeId];
+                      const nextH = current.h + delta.h;
+                      const scale = Math.max(0.7, Math.min(1.8, nextH / Math.max(1, current.h)));
+                      updateLayout(activeId, {
+                        w: current.w + delta.w,
+                        h: nextH,
+                        fontSize: Math.round((current.fontSize || defaultFontSize(activeId)) * scale),
+                      });
+                    }}
+                    onStyle={(patch) => materialCanResize && updateLayout(activeId, patch)}
                   />
                 )}
               </div>
@@ -1259,11 +1275,37 @@ function RefineMaterialBox({ id, active, layout, onMouseDown, children }) {
   );
 }
 
-function TextRefinePanel({ activeId, title, body, onTitle, onBody, onPolish, intent, onIntent, layout, onResize }) {
+function TextRefinePanel({ activeId, title, body, onTitle, onBody, onPolish, intent, onIntent, layout, onResize, onStyle }) {
   const editingBody = activeId === "body";
+  const activeTextLabel = materialLabel(activeId);
   return (
     <>
       <PanelTitle icon={<Type size={14} />} title="文本编辑" />
+      <div style={{ ...S.agentBlock, gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <label style={S.agentBlock}>
+          <span style={S.agentLabel}>{activeTextLabel}字号</span>
+          <input
+            type="number"
+            min="8"
+            max="72"
+            value={layout.fontSize || defaultFontSize(activeId)}
+            onChange={(e) => onStyle({ fontSize: Number(e.target.value) || defaultFontSize(activeId) })}
+            style={S.select}
+          />
+        </label>
+        <label style={S.agentBlock}>
+          <span style={S.agentLabel}>字体</span>
+          <select
+            value={layout.fontFamily || REFINE_FONT_OPTIONS[0].value}
+            onChange={(e) => onStyle({ fontFamily: e.target.value })}
+            style={S.select}
+          >
+            {REFINE_FONT_OPTIONS.map((font) => (
+              <option key={font.value} value={font.value}>{font.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
       <label style={S.agentBlock}>
         <span style={S.agentLabel}>标题</span>
         <textarea value={title} onChange={(e) => onTitle(e.target.value)} style={{ ...S.intentInput, minHeight: 82 }} />
@@ -1285,7 +1327,7 @@ function TextRefinePanel({ activeId, title, body, onTitle, onBody, onPolish, int
           <button type="button" onClick={() => onResize({ w: -24, h: -12 })} style={S.rejectBtn}>缩小</button>
           <button type="button" onClick={() => onResize({ w: 24, h: 12 })} style={S.approveBtn}>放大</button>
         </div>
-        <span style={S.intentSuggestion}>当前 {Math.round(layout.w)} x {Math.round(layout.h)}，也可直接拖动画布素材并拉右下角。</span>
+        <span style={S.intentSuggestion}>当前 {Math.round(layout.w)} x {Math.round(layout.h)}，拉伸会同步改变字号。</span>
       </div>
     </>
   );
@@ -1429,11 +1471,18 @@ const REFINE_MATERIAL_DEFS = [
   { id: "visual", label: "图片/图表素材", kind: "image" },
 ];
 
+const REFINE_FONT_OPTIONS = [
+  { label: "系统无衬线", value: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+  { label: "汇报黑体", value: "'Microsoft YaHei', 'PingFang SC', sans-serif" },
+  { label: "标题宋体", value: "Georgia, 'Times New Roman', 'SimSun', serif" },
+  { label: "等宽技术", value: "'SFMono-Regular', Consolas, 'Liberation Mono', monospace" },
+];
+
 const REFINE_BASE_LAYOUTS = {
-  title: { x: 44, y: 66, w: 430, h: 76 },
-  section: { x: 44, y: 145, w: 430, h: 28 },
+  title: { x: 44, y: 66, w: 430, h: 76, fontSize: 30, fontFamily: REFINE_FONT_OPTIONS[0].value },
+  section: { x: 44, y: 145, w: 430, h: 28, fontSize: 14, fontFamily: REFINE_FONT_OPTIONS[0].value },
   badge: { x: 535, y: 44, w: 141, h: 38 },
-  body: { x: 44, y: 184, w: 362, h: 170 },
+  body: { x: 44, y: 184, w: 362, h: 170, fontSize: 17, fontFamily: REFINE_FONT_OPTIONS[0].value },
   visual: { x: 436, y: 184, w: 240, h: 190 },
 };
 
@@ -1457,16 +1506,36 @@ function cloneRefineLayouts() {
 function clampLayout(rect) {
   const w = Math.min(640, Math.max(80, rect.w));
   const h = Math.min(320, Math.max(34, rect.h));
+  const fontSize = rect.fontSize ? Math.min(72, Math.max(8, rect.fontSize)) : rect.fontSize;
   return {
     x: Math.min(720 - w - 24, Math.max(24, rect.x)),
     y: Math.min(450 - h - 24, Math.max(24, rect.y)),
     w,
     h,
+    ...(fontSize ? { fontSize } : {}),
+    ...(rect.fontFamily ? { fontFamily: rect.fontFamily } : {}),
   };
 }
 
 function rectsIntersect(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function isTextMaterial(id) {
+  return REFINE_MATERIAL_DEFS.find((item) => item.id === id)?.kind === "text";
+}
+
+function defaultFontSize(id) {
+  return REFINE_BASE_LAYOUTS[id]?.fontSize || 14;
+}
+
+function textMaterialStyle(layout, extra = {}) {
+  return {
+    fontSize: layout.fontSize || 14,
+    fontFamily: layout.fontFamily || REFINE_FONT_OPTIONS[0].value,
+    overflowWrap: "anywhere",
+    ...extra,
+  };
 }
 
 function ThinkingBar({ visible }) {
