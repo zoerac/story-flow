@@ -1,17 +1,51 @@
-import { BookOpen, GripVertical } from "lucide-react";
+import { useState } from "react";
+import { BookOpen, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 
 export function StorylinePanel({
   secs,
   sel,
   setSel,
+  selPage,
   setSelPage,
   dragI,
   setDragI,
   overI,
   setOverI,
   onDrop,
+  commitVersion,
 }) {
+  const [openIds, setOpenIds] = useState(() => new Set([secs[0]?.id].filter(Boolean)));
+  const [pageDrag, setPageDrag] = useState(null);
+  const [pageOver, setPageOver] = useState(null);
   const pageCount = secs.reduce((sum, s) => sum + s.pages.length, 0);
+
+  const toggleOpen = (id) => {
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const onPageDrop = (sectionIndex, toPageIndex) => {
+    if (!pageDrag || pageDrag.sectionIndex !== sectionIndex || pageDrag.pageIndex === toPageIndex) {
+      setPageDrag(null);
+      setPageOver(null);
+      return;
+    }
+
+    const nextSecs = structuredClone(secs);
+    const pages = nextSecs[sectionIndex].pages;
+    const [moved] = pages.splice(pageDrag.pageIndex, 1);
+    pages.splice(toPageIndex, 0, moved);
+
+    commitVersion(`${nextSecs[sectionIndex].title}·页序调整`, nextSecs);
+    setSel(sectionIndex);
+    setSelPage(toPageIndex);
+    setPageDrag(null);
+    setPageOver(null);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", borderRight: "0.5px solid var(--color-border-tertiary)" }}>
@@ -57,6 +91,28 @@ export function StorylinePanel({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleOpen(s.id);
+                }}
+                aria-label={openIds.has(s.id) ? "收起子页" : "展开子页"}
+                style={{
+                  width: 14,
+                  height: 14,
+                  padding: 0,
+                  border: 0,
+                  background: "transparent",
+                  color: "var(--color-text-tertiary)",
+                  display: "grid",
+                  placeItems: "center",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                {openIds.has(s.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              </button>
               <GripVertical size={12} style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }} />
               <div style={{ width: 7, height: 7, borderRadius: "50%", background: s.c, flexShrink: 0 }} />
               <span style={{ fontSize: 12, fontWeight: 500 }}>{s.title}</span>
@@ -64,6 +120,64 @@ export function StorylinePanel({
             <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", marginTop: 2, marginLeft: 25 }}>
               {s.sub}
             </div>
+            {openIds.has(s.id) && (
+              <div style={{ marginTop: 7, marginLeft: 25, display: "grid", gap: 3 }}>
+                {s.pages.map((page, pageIndex) => {
+                  const active = i === sel && pageIndex === selPage;
+                  const over =
+                    pageOver?.sectionIndex === i &&
+                    pageOver?.pageIndex === pageIndex &&
+                    pageDrag?.pageIndex !== pageIndex;
+
+                  return (
+                    <div
+                      key={page.id}
+                      draggable
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        setPageDrag({ sectionIndex: i, pageIndex });
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPageOver({ sectionIndex: i, pageIndex });
+                      }}
+                      onDrop={(e) => {
+                        e.stopPropagation();
+                        onPageDrop(i, pageIndex);
+                      }}
+                      onDragEnd={(e) => {
+                        e.stopPropagation();
+                        setPageDrag(null);
+                        setPageOver(null);
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSel(i);
+                        setSelPage(pageIndex);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "5px 7px",
+                        borderRadius: 6,
+                        background: active ? "rgba(255,255,255,0.6)" : "transparent",
+                        border: over ? `1px dashed ${s.c}` : active ? `1px solid ${s.bd}` : "1px solid transparent",
+                        cursor: "grab",
+                        color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                        opacity: pageDrag?.sectionIndex === i && pageDrag?.pageIndex === pageIndex ? 0.45 : 1,
+                      }}
+                    >
+                      <GripVertical size={10} style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, fontWeight: active ? 500 : 400, lineHeight: 1.35 }}>
+                        {pageIndex + 1}. {page.h}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ))}
       </div>

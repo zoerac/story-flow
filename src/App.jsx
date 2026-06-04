@@ -19,12 +19,14 @@ function App() {
             secs={story.secs}
             sel={story.sel}
             setSel={story.setSel}
+            selPage={story.selPage}
             setSelPage={story.setSelPage}
             dragI={story.dragI}
             setDragI={story.setDragI}
             overI={story.overI}
             setOverI={story.setOverI}
             onDrop={story.onDrop}
+            commitVersion={story.commitVersion}
           />
           <div style={S.col}>
             <SlidePreview
