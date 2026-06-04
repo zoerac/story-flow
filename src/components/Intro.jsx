@@ -365,7 +365,7 @@ export function Intro({ onDone }) {
                 position: "absolute",
                 left: 14,
                 right: 14,
-                bottom: "calc(100% + 10px)",
+                top: "calc(100% + 10px)",
                 borderRadius: 10,
                 border: "0.5px solid #CECBF6",
                 background: "#FAFAFF",
