@@ -184,6 +184,7 @@ export function Intro({ onDone }) {
         >
           {/* 左栏：对话 */}
           <div
+            className="anim-fade-up"
             style={{
               flex: "1 1 380px",
               minWidth: 300,
@@ -320,6 +321,7 @@ export function Intro({ onDone }) {
 
           {/* 右栏：故事线预览 */}
           <div
+            className="anim-slide-in-right"
             style={{
               flex: "1 1 360px",
               minWidth: 280,

@@ -1,9 +1,57 @@
+import { useLayoutEffect, useRef } from "react";
 import { Sparkles } from "lucide-react";
 
-// 意图对齐阶段右栏的只读故事线预览。随 draft 实时重排；
-// 卡片以 section.id 为 key，配合动画类让重排 / 切换草案有过渡。
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+// 意图对齐阶段右栏的只读故事线预览。随 draft 实时重排：
+// 新章节用 anim-fade-up 入场，移动的章节用 FLIP 平滑滑到新位置，
+// 被 AI 改写内容的章节触发高亮脉冲，让“AI 刚改了哪里”一目了然。
 export function IntroStoryline({ sections }) {
   const totalPages = sections.reduce((sum, s) => sum + s.pages.length, 0);
+
+  const nodeRefs = useRef(new Map());   // id -> DOM 节点
+  const prevRects = useRef(new Map());  // id -> 上一轮位置
+  const prevSig = useRef(new Map());    // id -> 上一轮内容签名
+
+  useLayoutEffect(() => {
+    const reduce = prefersReducedMotion();
+    const nextRects = new Map();
+
+    sections.forEach((s) => {
+      const node = nodeRefs.current.get(s.id);
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      nextRects.set(s.id, rect);
+
+      const prev = prevRects.current.get(s.id);
+      const sig = JSON.stringify(s);
+      const wasSig = prevSig.current.get(s.id);
+
+      if (prev && !reduce) {
+        // FLIP：先把节点位移回旧位置，再让它过渡到新位置
+        const dx = prev.left - rect.left;
+        const dy = prev.top - rect.top;
+        if (dx || dy) {
+          node.style.transition = "none";
+          node.style.transform = `translate(${dx}px, ${dy}px)`;
+          requestAnimationFrame(() => {
+            node.style.transition = "transform var(--motion-slow) var(--ease-out)";
+            node.style.transform = "";
+          });
+        }
+        // 同一章节内容被改写（加页 / 调性等）→ 高亮脉冲
+        if (wasSig !== undefined && wasSig !== sig) {
+          node.classList.remove("anim-highlight");
+          void node.offsetWidth; // 强制回流以重启动画
+          node.classList.add("anim-highlight");
+        }
+      }
+    });
+
+    prevRects.current = nextRects;
+    prevSig.current = new Map(sections.map((s) => [s.id, JSON.stringify(s)]));
+  }, [sections]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
@@ -29,6 +77,10 @@ export function IntroStoryline({ sections }) {
         {sections.map((s, i) => (
           <div
             key={s.id}
+            ref={(el) => {
+              if (el) nodeRefs.current.set(s.id, el);
+              else nodeRefs.current.delete(s.id);
+            }}
             className="anim-fade-up"
             style={{
               animationDelay: `${i * 30}ms`,
