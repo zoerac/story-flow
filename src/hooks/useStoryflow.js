@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { AI_CHAT, INIT, cloneSections, palettes, pick } from "../data/mock";
+import { AI_CHAT, INIT, applyStorylineStructuralImpact, cloneSections, palettes, pick } from "../data/mock";
 import { applyIntent, parseIntent, polishOnMerge, polishOnReorder, polishOnSplit } from "../lib/refineEngine";
 
 export function useStoryflow() {
@@ -71,9 +71,15 @@ export function useStoryflow() {
     const [mv] = reordered.splice(dragI, 1);
     reordered.splice(to, 0, mv);
     const dir = to < dragI ? "前移" : "后移";
+    const impacted = applyStorylineStructuralImpact(reordered, {
+      from: dragI,
+      to,
+      movedId: mv.id,
+      direction: dir,
+    });
 
     // 重排序后实时润色：根据新的上下文重写衔接文案
-    const { sections: polished, summary } = polishOnReorder(reordered, dragI, to);
+    const { sections: polished, summary } = polishOnReorder(impacted, dragI, to);
     const undoTo = curV;
     commitVersion(`${mv.title}${dir}`, polished);
     setSel(to);
