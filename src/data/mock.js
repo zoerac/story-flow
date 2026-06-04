@@ -317,6 +317,30 @@ export const AI_CHAT = [
   "当前版本的故事线逻辑清晰。如果想进一步打磨，可以考虑在「核心问题」后加一页 '解决方案概览' 作为过渡。",
 ];
 
+export const REFINE_IMAGE_CANDIDATES = [
+  {
+    id: "workflow-cards",
+    title: "多模态卡片墙",
+    image: VISUAL_IMAGES[0],
+    tint: "#EEEDFE",
+    accent: "#7F77DD",
+  },
+  {
+    id: "data-dashboard",
+    title: "数据洞察看板",
+    image: VISUAL_IMAGES[1],
+    tint: "#E6F1FB",
+    accent: "#378ADD",
+  },
+  {
+    id: "structure-map",
+    title: "故事线结构图",
+    image: VISUAL_IMAGES[2],
+    tint: "#E1F5EE",
+    accent: "#1D9E75",
+  },
+];
+
 export const VISUAL_INTENT_SUMMARY = "面向 AI Native 演示文稿编辑器的产品汇报，视觉要克制、专业、强调结构层与多模态素材的协作关系。";
 
 export const VISUAL_CANVA_TEMPLATES = [
