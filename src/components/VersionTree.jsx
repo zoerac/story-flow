@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { GitBranch, RotateCcw, Check, X } from "lucide-react";
+import { GitBranch, RotateCcw, Check, X, Star, Trash2, Save } from "lucide-react";
 
 const STAGE_LABELS = {
   intent: "意图",
@@ -14,6 +14,8 @@ const KIND_LABELS = {
   edit: "编辑",
   refine: "精修",
 };
+
+const STAR_COLOR = "#E0A100";
 
 const ROW_H = 30;
 const LANE_W = 16;
@@ -47,17 +49,21 @@ function useGraphLayout(vers) {
   }, [vers]);
 }
 
-export function VersionTree({ vers, curV, restore }) {
+export function VersionTree({ vers, curV, secs, restore, saveVersion, toggleSaved, deleteVersion }) {
   const [selVid, setSelVid] = useState(curV);
   const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { pos, order, laneCount } = useGraphLayout(vers);
 
   const sel = vers.find((x) => x.id === selVid) || vers.find((x) => x.id === curV);
   const parent = sel ? vers.find((x) => x.id === sel.par) : null;
+  const curNode = vers.find((x) => x.id === curV);
+  const hasUnsaved = Boolean(curNode && secs && JSON.stringify(curNode.snap) !== JSON.stringify(secs));
 
   const select = (vid) => {
     setSelVid(vid);
     setConfirming(false);
+    setDeleting(false);
   };
 
   const doRestore = () => {
@@ -66,6 +72,17 @@ export function VersionTree({ vers, curV, restore }) {
     setSelVid(sel.id);
     setConfirming(false);
   };
+
+  const doDelete = (mode) => {
+    if (!sel) return;
+    const pid = sel.par;
+    deleteVersion?.(sel.id, mode);
+    setSelVid(pid || curV);
+    setDeleting(false);
+  };
+
+  const isRoot = sel?.par === null;
+  const canDelete = Boolean(sel && !isRoot && !sel.saved);
 
   const graphW = PAD_X * 2 + (laneCount - 1) * LANE_W;
   const svgH = PAD_Y * 2 + (order.length - 1) * ROW_H;
@@ -106,6 +123,7 @@ export function VersionTree({ vers, curV, restore }) {
               const p = pos[id];
               const isCur = id === curV;
               const isSel = id === selVid;
+              const stroke = isSel || isCur ? "#D85A30" : v.saved ? STAR_COLOR : "var(--color-border-primary)";
               return (
                 <circle
                   key={`n-${id}`}
@@ -113,8 +131,8 @@ export function VersionTree({ vers, curV, restore }) {
                   cy={cy(p.row)}
                   r={isSel || isCur ? R + 0.5 : R}
                   fill={isCur ? "#D85A30" : "var(--color-background-primary)"}
-                  stroke={isSel ? "#D85A30" : isCur ? "#D85A30" : "var(--color-border-primary)"}
-                  strokeWidth={isSel ? 2.5 : 1.5}
+                  stroke={stroke}
+                  strokeWidth={isSel ? 2.5 : v.saved ? 2 : 1.5}
                   style={{ cursor: "pointer" }}
                   onClick={() => select(v.id)}
                 />
@@ -159,6 +177,7 @@ export function VersionTree({ vers, curV, restore }) {
                 }}
               >
                 <span style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", fontWeight: 600, color: isCur ? "#D85A30" : "var(--color-text-tertiary)", flexShrink: 0 }}>{id}</span>
+                {v.saved && <Star size={10} fill={STAR_COLOR} color={STAR_COLOR} style={{ flexShrink: 0 }} />}
                 <span title={v.label} style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, fontWeight: isCur ? 500 : 400, color: isCur ? "#712B13" : "var(--color-text-secondary)" }}>
                   {v.label}
                 </span>
@@ -169,10 +188,18 @@ export function VersionTree({ vers, curV, restore }) {
         </div>
       </div>
 
+      {/* 手动保存：当前工作态相对当前版本有未保存改动时出现 */}
+      {hasUnsaved && (
+        <button type="button" onClick={() => saveVersion?.()} style={saveBar}>
+          <Save size={13} /> 保存当前精修为版本
+        </button>
+      )}
+
       {sel && (
         <div style={detailPanel}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
             <span style={{ fontSize: 9, fontFamily: "ui-monospace, monospace", color: "#fff", background: "#D85A30", borderRadius: 4, padding: "1px 5px", flexShrink: 0 }}>{sel.id}</span>
+            {sel.saved && <Star size={12} fill={STAR_COLOR} color={STAR_COLOR} style={{ flexShrink: 0 }} />}
             <span title={sel.label} style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, fontWeight: 500, color: "var(--color-text-primary)" }}>{sel.label}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6 }}>
@@ -193,23 +220,72 @@ export function VersionTree({ vers, curV, restore }) {
             <span style={{ color: "var(--color-text-secondary)" }}>{sel.ch.length} 个子版本</span>
           </div>
 
+          {/* 回滚 */}
           {sel.id === curV ? (
-            <button type="button" disabled style={{ ...rollbackBtn, opacity: 0.5, cursor: "default", background: "var(--color-background-secondary)", color: "var(--color-text-tertiary)", border: "1px solid var(--color-border-tertiary)" }}>
+            <button type="button" disabled style={{ ...actionBtn, marginTop: 8, opacity: 0.5, cursor: "default", background: "var(--color-background-secondary)", color: "var(--color-text-tertiary)", border: "1px solid var(--color-border-tertiary)" }}>
               已是当前版本
             </button>
           ) : confirming ? (
-            <div style={{ display: "flex", gap: 6 }}>
-              <button type="button" onClick={doRestore} style={{ ...rollbackBtn, flex: 1, background: "#D85A30", color: "#fff", border: "1px solid #D85A30" }}>
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <button type="button" onClick={doRestore} style={{ ...actionBtn, flex: 1, background: "#D85A30", color: "#fff", border: "1px solid #D85A30" }}>
                 <Check size={12} /> 确认回滚
               </button>
-              <button type="button" onClick={() => setConfirming(false)} style={{ ...rollbackBtn, flex: 1, background: "transparent", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-secondary)" }}>
+              <button type="button" onClick={() => setConfirming(false)} style={{ ...actionBtn, flex: 1, background: "transparent", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-secondary)" }}>
                 <X size={12} /> 取消
               </button>
             </div>
           ) : (
-            <button type="button" onClick={() => setConfirming(true)} style={{ ...rollbackBtn, width: "100%", background: "#fff", color: "#993C1D", border: "1px solid #F5C4B3" }}>
+            <button type="button" onClick={() => { setConfirming(true); setDeleting(false); }} style={{ ...actionBtn, marginTop: 8, width: "100%", background: "#fff", color: "#993C1D", border: "1px solid #F5C4B3" }}>
               <RotateCcw size={12} /> 回滚到此版本
             </button>
+          )}
+
+          {/* 星标 + 删除 */}
+          {deleting ? (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", marginBottom: 4 }}>
+                {sel.ch.length > 0 ? "该版本有子版本，选择删除方式：" : "确认删除该版本？"}
+              </div>
+              {sel.ch.length > 0 ? (
+                <div style={{ display: "grid", gap: 6 }}>
+                  <button type="button" onClick={() => doDelete("reparent")} style={{ ...actionBtn, width: "100%", background: "#fff", color: "#B23A2E", border: "1px solid #E7B7AE" }}>
+                    <Trash2 size={12} /> 删除·子节点上接父级
+                  </button>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button type="button" onClick={() => doDelete("subtree")} style={{ ...actionBtn, flex: 1, background: "#B23A2E", color: "#fff", border: "1px solid #B23A2E" }}>
+                      <Trash2 size={12} /> 删整棵子树
+                    </button>
+                    <button type="button" onClick={() => setDeleting(false)} style={{ ...actionBtn, flex: 1, background: "transparent", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-secondary)" }}>
+                      <X size={12} /> 取消
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button type="button" onClick={() => doDelete("reparent")} style={{ ...actionBtn, flex: 1, background: "#B23A2E", color: "#fff", border: "1px solid #B23A2E" }}>
+                    <Check size={12} /> 确认删除
+                  </button>
+                  <button type="button" onClick={() => setDeleting(false)} style={{ ...actionBtn, flex: 1, background: "transparent", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-secondary)" }}>
+                    <X size={12} /> 取消
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+              <button type="button" onClick={() => toggleSaved?.(sel.id)} style={{ ...actionBtn, flex: 1, background: sel.saved ? "#FBF3DC" : "#fff", color: sel.saved ? "#8A6500" : "var(--color-text-secondary)", border: `1px solid ${sel.saved ? "#EAD79B" : "var(--color-border-secondary)"}` }}>
+                <Star size={12} fill={sel.saved ? STAR_COLOR : "none"} color={sel.saved ? STAR_COLOR : "currentColor"} /> {sel.saved ? "已星标" : "星标"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { if (canDelete) { setDeleting(true); setConfirming(false); } }}
+                disabled={!canDelete}
+                title={isRoot ? "根节点不可删除" : sel.saved ? "星标节点受保护，取消星标后可删除" : "删除此版本"}
+                style={{ ...actionBtn, flex: 1, background: "#fff", color: canDelete ? "#B23A2E" : "var(--color-text-tertiary)", border: `1px solid ${canDelete ? "#E7B7AE" : "var(--color-border-tertiary)"}`, opacity: canDelete ? 1 : 0.5, cursor: canDelete ? "pointer" : "not-allowed" }}
+              >
+                <Trash2 size={12} /> 删除
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -243,8 +319,7 @@ const detailRow = {
   marginBottom: 3,
 };
 
-const rollbackBtn = {
-  marginTop: 8,
+const actionBtn = {
   height: 28,
   borderRadius: 6,
   cursor: "pointer",
@@ -256,6 +331,24 @@ const rollbackBtn = {
   justifyContent: "center",
   gap: 4,
   transition: "background 0.15s",
+};
+
+const saveBar = {
+  flexShrink: 0,
+  height: 32,
+  borderTop: "0.5px solid var(--color-border-tertiary)",
+  background: "#FFF7ED",
+  color: "#9A3412",
+  border: "none",
+  borderBottom: "1px solid #FCD9B6",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  fontSize: 11,
+  fontWeight: 600,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 5,
 };
 
 const panelHead = {

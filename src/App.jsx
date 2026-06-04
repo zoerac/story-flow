@@ -52,10 +52,6 @@ function App() {
     story.commitVersion(label, nextSecs, { stage: "structure", kind: "edit" });
   };
 
-  const commitRefineVersion = (label, nextSecs) => {
-    story.commitVersion(label, nextSecs, { stage: "refine", kind: "refine" });
-  };
-
   const setLeftOpen = (next) => {
     setLayout((prev) => ({ ...prev, leftOpen: typeof next === "function" ? next(prev.leftOpen) : next }));
   };
@@ -109,13 +105,16 @@ function App() {
           <div key="refine" className="anim-fade-up" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <AIRefinePage
               secs={story.secs}
+              setSecs={story.setSecs}
               sel={story.sel}
               selPage={story.selPage}
               rightOpen={layout.rightOpen}
               vers={story.vers}
               curV={story.curV}
               restore={handleRestore}
-              commitVersion={commitRefineVersion}
+              saveVersion={story.saveVersion}
+              toggleSaved={story.toggleSaved}
+              deleteVersion={story.deleteVersion}
               addMsg={story.addMsg}
               onBack={() => handleStageJump("structure")}
             />
@@ -182,7 +181,17 @@ function App() {
             </div>
             <ResizeBar hidden={!layout.rightOpen} onMouseDown={startResize("right")} />
             <div style={{ minWidth: 0, overflow: "hidden" }}>
-              {layout.rightOpen && <VersionTree vers={story.vers} curV={story.curV} restore={handleRestore} />}
+              {layout.rightOpen && (
+                <VersionTree
+                  vers={story.vers}
+                  curV={story.curV}
+                  secs={story.secs}
+                  restore={handleRestore}
+                  saveVersion={() => story.saveVersion("手动保存", { stage: "structure", kind: "edit" })}
+                  toggleSaved={story.toggleSaved}
+                  deleteVersion={story.deleteVersion}
+                />
+              )}
             </div>
           </div>
         )}
@@ -894,7 +903,7 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
   );
 }
 
-function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, commitVersion, addMsg, onBack }) {
+function AIRefinePage({ secs, setSecs, sel, selPage, rightOpen, vers, curV, restore, saveVersion, toggleSaved, deleteVersion, addMsg, onBack }) {
   const [zoom, setZoom] = useState(1);
   const [dragStart, setDragStart] = useState(null);
   const [selRect, setSelRect] = useState(null);
@@ -958,8 +967,8 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, comm
       setVisualRevision((v) => v + 1);
     }
 
-    commitVersion(`AI精修·方案${proposal.index}`, nextSecs);
-    addMsg("sys", `AI精修方案${proposal.index}已应用到「${curPage.h}」，并纳入版本树。`);
+    setSecs(nextSecs);
+    addMsg("sys", `AI精修方案${proposal.index}已应用到「${curPage.h}」，可在右侧版本树点「保存」记录为版本。`);
     setSelRect(null);
     setRightTab("versions");
   };
@@ -1099,7 +1108,15 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, comm
           </div>
           <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
             {rightTab === "versions" ? (
-              <VersionTree vers={vers} curV={curV} restore={restore} />
+              <VersionTree
+                vers={vers}
+                curV={curV}
+                secs={secs}
+                restore={restore}
+                saveVersion={() => saveVersion("AI精修·手动保存", { stage: "refine", kind: "refine" })}
+                toggleSaved={toggleSaved}
+                deleteVersion={deleteVersion}
+              />
             ) : (
               <div style={{ height: "100%", padding: 12, display: "grid", gap: 10, overflowY: "auto" }}>
                 {!intent.trim() ? (

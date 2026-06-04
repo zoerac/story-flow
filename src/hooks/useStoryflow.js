@@ -90,6 +90,55 @@ export function useStoryflow() {
     addMsg("sys", `已回溯至版本「${v.label}」，可从此处继续编辑或分叉探索新方向。`);
   };
 
+  // 手动保存当前工作态为版本节点（用于 AI 单页精修等不自动入树的改动）
+  const saveVersion = (label = "手动保存", meta = {}) =>
+    commitVersion(label, secs, { stage: "refine", kind: "refine", ...meta });
+
+  // 切换节点星标（标记重要里程碑，星标节点受保护不可删除）
+  const toggleSaved = (vid) => {
+    setVers((prev) => prev.map((v) => (v.id === vid ? { ...v, saved: !v.saved } : v)));
+  };
+
+  // 删除节点：mode="reparent" 子节点上接父级；mode="subtree" 删除整棵子树
+  const deleteVersion = (vid, mode = "reparent") => {
+    const byId = Object.fromEntries(vers.map((v) => [v.id, v]));
+    const target = byId[vid];
+    if (!target || target.par === null || target.saved) return false;
+
+    const parentId = target.par;
+    const descendants = [];
+    const collect = (id) => byId[id]?.ch.forEach((c) => { descendants.push(c); collect(c); });
+    collect(vid);
+
+    if (mode === "subtree" && descendants.some((id) => byId[id]?.saved)) {
+      addMsg("sys", "子树中包含星标节点，已取消删除以保护它们。");
+      return false;
+    }
+
+    const removed = new Set(mode === "subtree" ? [vid, ...descendants] : [vid]);
+
+    setVers((prev) => {
+      const next = prev.filter((v) => !removed.has(v.id));
+      if (mode === "subtree") {
+        return next.map((v) => (v.id === parentId ? { ...v, ch: v.ch.filter((c) => c !== vid) } : v));
+      }
+      const childIds = target.ch;
+      return next.map((v) => {
+        if (v.id === parentId) return { ...v, ch: v.ch.flatMap((c) => (c === vid ? childIds : [c])) };
+        if (childIds.includes(v.id)) return { ...v, par: parentId };
+        return v;
+      });
+    });
+
+    // 当前版本若被删除，回退到父节点
+    if (removed.has(curV)) {
+      setCurV(parentId);
+      setSecs(cloneSections(byId[parentId].snap));
+    }
+    addMsg("sys", `已删除版本「${target.label}」${mode === "subtree" ? "及其子树" : "（子节点已上接父级）"}。`);
+    return true;
+  };
+
   const send = (text) => {
     const val = text?.trim();
     if (!val) return;
@@ -118,6 +167,9 @@ export function useStoryflow() {
     addMsg,
     onDrop,
     restore,
+    saveVersion,
+    toggleSaved,
+    deleteVersion,
     send,
     commitVersion,
     setDragI,
