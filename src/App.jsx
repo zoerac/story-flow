@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, Image, Minus, Plus, Sparkles } from "lucide-react";
 import { ChatPanel } from "./components/ChatPanel";
 import { Intro } from "./components/Intro";
@@ -6,6 +6,21 @@ import { StorylinePanel } from "./components/StorylinePanel";
 import { Toolbar } from "./components/Toolbar";
 import { VersionTree } from "./components/VersionTree";
 import { useStoryflow } from "./hooks/useStoryflow";
+
+const SHELL_NARROW_BREAKPOINT = 900;
+const SLIDE_ASPECT = 10 / 16;
+const SLIDE_MAX_W = 720;
+
+function computeSlideSize(availW, availH, maxW = SLIDE_MAX_W) {
+  const pad = 32;
+  let slideW = Math.min(maxW, Math.max(280, availW - pad));
+  let slideH = slideW * SLIDE_ASPECT;
+  if (slideH > availH - pad) {
+    slideH = Math.max(200, availH - pad);
+    slideW = slideH / SLIDE_ASPECT;
+  }
+  return { slideW, slideH };
+}
 
 function App() {
   const story = useStoryflow();
@@ -18,6 +33,18 @@ function App() {
     rightOpen: true,
   });
   const shellRef = useRef(null);
+  const [shellNarrow, setShellNarrow] = useState(false);
+
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el) return undefined;
+    const ro = new ResizeObserver(([entry]) => {
+      setShellNarrow(entry.contentRect.width < SHELL_NARROW_BREAKPOINT);
+    });
+    ro.observe(el);
+    setShellNarrow(el.getBoundingClientRect().width < SHELL_NARROW_BREAKPOINT);
+    return () => ro.disconnect();
+  }, []);
 
   const setLeftOpen = (next) => {
     setLayout((prev) => ({ ...prev, leftOpen: typeof next === "function" ? next(prev.leftOpen) : next }));
@@ -48,8 +75,21 @@ function App() {
     window.addEventListener("mouseup", onUp);
   };
 
+  const structureGridCols = shellNarrow
+    ? undefined
+    : `${layout.leftOpen ? layout.leftW : 0}px ${layout.leftOpen ? 4 : 0}px minmax(0,1fr) ${layout.rightOpen ? 4 : 0}px ${layout.rightOpen ? layout.rightW : 0}px`;
+
   return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "stretch",
+        padding: 24,
+        boxSizing: "border-box",
+      }}
+    >
       <div ref={shellRef} style={S.shell}>
         {/* SLOT:toolbar */}
         <Toolbar
@@ -67,6 +107,7 @@ function App() {
         {showIntro && view === "edit" && <Intro onDone={() => setShowIntro(false)} />}
         {view === "refine" ? (
           <AIRefinePage
+            shellNarrow={shellNarrow}
             secs={story.secs}
             sel={story.sel}
             selPage={story.selPage}
@@ -79,13 +120,48 @@ function App() {
             addMsg={story.addMsg}
             onBack={() => setView("edit")}
           />
+        ) : shellNarrow ? (
+          <div style={{ ...S.root, ...S.rootNarrow }}>
+            {layout.leftOpen && (
+              <div style={S.stackPanel30}>
+                <StorylinePanel
+                  secs={story.secs}
+                  sel={story.sel}
+                  setSel={story.setSel}
+                  selPage={story.selPage}
+                  setSelPage={story.setSelPage}
+                  dragI={story.dragI}
+                  setDragI={story.setDragI}
+                  overI={story.overI}
+                  setOverI={story.setOverI}
+                  onDrop={story.onDrop}
+                  commitVersion={story.commitVersion}
+                />
+              </div>
+            )}
+            {layout.rightOpen && (
+              <div style={S.stackPanel22}>
+                <VersionTree vers={story.vers} curV={story.curV} restore={story.restore} />
+              </div>
+            )}
+            <div style={{ ...S.col, flex: 1, minHeight: 0 }}>
+              <StructureSlidePreview
+                secs={story.secs}
+                sel={story.sel}
+                setSel={story.setSel}
+                selPage={story.selPage}
+                setSelPage={story.setSelPage}
+              />
+              <ChatPanel
+                msgs={story.msgs}
+                send={story.send}
+                thinking={story.thinking}
+                chatEnd={story.chatEnd}
+              />
+            </div>
+          </div>
         ) : (
-          <div
-            style={{
-              ...S.root,
-              gridTemplateColumns: `${layout.leftOpen ? layout.leftW : 0}px ${layout.leftOpen ? 4 : 0}px minmax(0,1fr) ${layout.rightOpen ? 4 : 0}px ${layout.rightOpen ? layout.rightW : 0}px`,
-            }}
-          >
+          <div style={{ ...S.root, gridTemplateColumns: structureGridCols }}>
             <div style={{ minWidth: 0, overflow: "hidden" }}>
               {layout.leftOpen && (
                 <StorylinePanel
@@ -133,6 +209,10 @@ function App() {
 const S = {
   shell: {
     width: "min(100%, 980px)",
+    height: "calc(100vh - 48px)",
+    maxHeight: "calc(100vh - 48px)",
+    display: "flex",
+    flexDirection: "column",
     borderRadius: 12,
     overflow: "hidden",
     border: "0.5px solid var(--color-border-tertiary)",
@@ -144,8 +224,25 @@ const S = {
   },
   root: {
     display: "grid",
-    height: 580,
+    flex: 1,
+    minHeight: 0,
     background: "var(--color-background-primary)",
+  },
+  rootNarrow: {
+    display: "flex",
+    flexDirection: "column",
+  },
+  stackPanel30: {
+    maxHeight: "30vh",
+    minHeight: 0,
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+  stackPanel22: {
+    maxHeight: "22vh",
+    minHeight: 0,
+    overflow: "hidden",
+    flexShrink: 0,
   },
   col: {
     display: "flex",
@@ -164,7 +261,8 @@ const S = {
     borderRadius: 10,
     border: "0.5px solid var(--color-border-secondary)",
     padding: "18px 22px",
-    maxWidth: 300,
+    width: "min(100%, 300px)",
+    maxWidth: "100%",
     margin: "0 auto",
     aspectRatio: "16/10",
     display: "flex",
@@ -174,10 +272,28 @@ const S = {
     overflow: "hidden",
   },
   refineRoot: {
-    height: 640,
+    flex: 1,
+    minHeight: 0,
     display: "grid",
-    gridTemplateColumns: "188px minmax(0,1fr) 276px",
+    gridTemplateColumns: "minmax(160px, 22%) minmax(0, 1fr) minmax(220px, 30%)",
     background: "var(--color-background-tertiary)",
+  },
+  refineRootNarrow: {
+    display: "flex",
+    flexDirection: "column",
+    gridTemplateColumns: undefined,
+  },
+  refineStackIntent: {
+    maxHeight: "32vh",
+    minHeight: 0,
+    flexShrink: 0,
+    overflow: "hidden",
+  },
+  refineStackAgent: {
+    maxHeight: "38vh",
+    minHeight: 0,
+    flexShrink: 0,
+    overflow: "hidden",
   },
   refineLeftPanel: {
     minWidth: 0,
@@ -261,8 +377,6 @@ const S = {
     alignItems: "flex-start",
   },
   bigSlide: {
-    width: 720,
-    height: 450,
     position: "absolute",
     inset: 0,
     background: "var(--color-background-primary)",
@@ -494,18 +608,34 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
   );
 }
 
-function AIRefinePage({ secs, sel, selPage, setSelPage, vers, curV, restore, commitVersion, addMsg, onBack }) {
+function AIRefinePage({ shellNarrow, secs, sel, selPage, setSelPage, vers, curV, restore, commitVersion, addMsg, onBack }) {
   const [zoom, setZoom] = useState(1);
   const [dragStart, setDragStart] = useState(null);
   const [selRect, setSelRect] = useState(null);
   const [intent, setIntent] = useState("");
   const [rightTab, setRightTab] = useState("proposals");
   const [visualRevision, setVisualRevision] = useState(0);
+  const [slideSize, setSlideSize] = useState({ slideW: SLIDE_MAX_W, slideH: SLIDE_MAX_W * SLIDE_ASPECT });
   const canvasRef = useRef(null);
+  const viewportRef = useRef(null);
   const curSec = secs[sel];
   const curPage = curSec?.pages[selPage] || curSec?.pages[0];
-  const region = classifyRegion(selRect);
+  const { slideW, slideH } = slideSize;
+  const region = classifyRegion(selRect, slideW, slideH);
   const proposals = buildRefineProposals(intent, region, selPage, curPage, curSec);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return undefined;
+    const update = () => {
+      const { width, height } = el.getBoundingClientRect();
+      setSlideSize(computeSlideSize(width, height));
+    };
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    update();
+    return () => ro.disconnect();
+  }, []);
 
   const setZoomClamped = (next) => setZoom((prev) => Math.min(1.8, Math.max(0.6, typeof next === "function" ? next(prev) : next)));
 
@@ -513,8 +643,8 @@ function AIRefinePage({ secs, sel, selPage, setSelPage, vers, curV, restore, com
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return null;
     return {
-      x: Math.max(0, Math.min((e.clientX - rect.left) / zoom, 720)),
-      y: Math.max(0, Math.min((e.clientY - rect.top) / zoom, 450)),
+      x: Math.max(0, Math.min((e.clientX - rect.left) / zoom, slideW)),
+      y: Math.max(0, Math.min((e.clientY - rect.top) / zoom, slideH)),
     };
   };
 
@@ -562,11 +692,15 @@ function AIRefinePage({ secs, sel, selPage, setSelPage, vers, curV, restore, com
     setRightTab("versions");
   };
 
-  return (
-    <div style={S.refineRoot}>
-      <div style={S.refineLeftPanel}>
-        <div style={S.refineLeftHead}>页面与意图</div>
-        <div style={{ padding: 14, display: "grid", gap: 16, overflowY: "auto" }}>
+  const leftPanel = (
+    <div
+      style={{
+        ...S.refineLeftPanel,
+        ...(shellNarrow ? { borderRight: 0, borderBottom: "0.5px solid var(--color-border-tertiary)" } : {}),
+      }}
+    >
+      <div style={S.refineLeftHead}>页面与意图</div>
+      <div style={{ padding: 14, display: "grid", gap: 16, overflowY: "auto", flex: 1, minHeight: 0 }}>
           <div style={S.agentBlock}>
             <div style={S.agentLabel}>当前章节</div>
             <div style={{ fontSize: 13, fontWeight: 650, color: "var(--color-text-primary)", lineHeight: 1.35 }}>{curSec?.title}</div>
@@ -615,125 +749,162 @@ function AIRefinePage({ secs, sel, selPage, setSelPage, vers, curV, restore, com
             />
           </div>
         </div>
-      </div>
-      <div style={S.refineCanvasCol}>
-        <div style={S.refineTopbar}>
-          <button type="button" onClick={onBack} style={S.backBtn}>
-            <ArrowLeft size={14} /> 返回结构编辑
+    </div>
+  );
+
+  const canvasCol = (
+    <div style={{ ...S.refineCanvasCol, ...(shellNarrow ? { flex: 1, minHeight: 0 } : {}) }}>
+      <div style={S.refineTopbar}>
+        <button type="button" onClick={onBack} style={S.backBtn}>
+          <ArrowLeft size={14} /> 返回结构编辑
+        </button>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+          <button type="button" onClick={() => setZoomClamped((v) => v - 0.1)} style={S.zoomBtn} aria-label="缩小">
+            <Minus size={14} />
           </button>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-            <button type="button" onClick={() => setZoomClamped((v) => v - 0.1)} style={S.zoomBtn} aria-label="缩小">
-              <Minus size={14} />
-            </button>
-            <span style={{ width: 42, textAlign: "center", fontSize: 11, color: "var(--color-text-secondary)" }}>{Math.round(zoom * 100)}%</span>
-            <button type="button" onClick={() => setZoomClamped((v) => v + 0.1)} style={S.zoomBtn} aria-label="放大">
-              <Plus size={14} />
-            </button>
-          </div>
+          <span style={{ width: 42, textAlign: "center", fontSize: 11, color: "var(--color-text-secondary)" }}>{Math.round(zoom * 100)}%</span>
+          <button type="button" onClick={() => setZoomClamped((v) => v + 0.1)} style={S.zoomBtn} aria-label="放大">
+            <Plus size={14} />
+          </button>
         </div>
-        <div style={S.canvasViewport}>
-          <div style={{ width: 720 * zoom, height: 450 * zoom, position: "relative", flexShrink: 0 }}>
+      </div>
+      <div ref={viewportRef} style={S.canvasViewport}>
+        <div style={{ width: slideW * zoom, height: slideH * zoom, position: "relative", flexShrink: 0 }}>
+          <div
+            ref={canvasRef}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            style={{
+              ...S.bigSlide,
+              width: slideW,
+              height: slideH,
+              transform: `scale(${zoom})`,
+              transformOrigin: "top left",
+              borderColor: curSec?.bd,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ width: 64, height: 6, borderRadius: 3, background: curSec?.c, marginBottom: 18 }} />
+                <div style={{ fontSize: slideW < 520 ? 22 : 30, fontWeight: 650, lineHeight: 1.18, maxWidth: "100%" }}>{curPage?.h}</div>
+                <div style={{ fontSize: 14, color: "var(--color-text-tertiary)", marginTop: 10 }}>{curSec?.title} · {curSec?.sub}</div>
+              </div>
+              <div style={{ ...S.visualBadge, background: curSec?.bg, borderColor: curSec?.bd, color: curSec?.c, flexShrink: 0 }}>
+                <Sparkles size={18} /> AI Native
+              </div>
+            </div>
             <div
-              ref={canvasRef}
-              onMouseDown={onMouseDown}
-              onMouseMove={onMouseMove}
-              onMouseUp={onMouseUp}
               style={{
-                ...S.bigSlide,
-                transform: `scale(${zoom})`,
-                transformOrigin: "top left",
-                borderColor: curSec?.bd,
+                ...S.slideBodyGrid,
+                gridTemplateColumns: slideW < 520 ? "1fr" : "1fr minmax(120px, 33%)",
+                marginTop: slideW < 520 ? 24 : 42,
+                gap: slideW < 520 ? 16 : 30,
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24 }}>
-                <div>
-                  <div style={{ width: 64, height: 6, borderRadius: 3, background: curSec?.c, marginBottom: 18 }} />
-                  <div style={{ fontSize: 30, fontWeight: 650, lineHeight: 1.18, maxWidth: 430 }}>{curPage?.h}</div>
-                  <div style={{ fontSize: 14, color: "var(--color-text-tertiary)", marginTop: 10 }}>{curSec?.title} · {curSec?.sub}</div>
+              <div style={{ fontSize: slideW < 520 ? 14 : 17, lineHeight: 1.8, color: "var(--color-text-secondary)" }}>{curPage?.b}</div>
+              <div style={{ ...S.mockVisual, minHeight: slideW < 520 ? 120 : 170, background: visualRevision % 2 ? "#E6F1FB" : curSec?.bg, borderColor: visualRevision % 2 ? "#B5D4F4" : curSec?.bd }}>
+                <Image size={28} style={{ color: visualRevision % 2 ? "#378ADD" : curSec?.c }} />
+                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>
+                  {visualRevision % 2 ? "重绘数据视觉" : "多模态素材区"}
                 </div>
-                <div style={{ ...S.visualBadge, background: curSec?.bg, borderColor: curSec?.bd, color: curSec?.c }}>
-                  <Sparkles size={18} /> AI Native
-                </div>
+                <div style={S.barRow}><span style={{ ...S.bar, width: "76%", background: curSec?.c }} /><span style={{ ...S.bar, width: "48%", background: "#D4537E" }} /></div>
+                <div style={S.barRow}><span style={{ ...S.bar, width: "58%", background: "#1D9E75" }} /><span style={{ ...S.bar, width: "84%", background: "#378ADD" }} /></div>
               </div>
-              <div style={S.slideBodyGrid}>
-                <div style={{ fontSize: 17, lineHeight: 1.8, color: "var(--color-text-secondary)" }}>{curPage?.b}</div>
-                <div style={{ ...S.mockVisual, background: visualRevision % 2 ? "#E6F1FB" : curSec?.bg, borderColor: visualRevision % 2 ? "#B5D4F4" : curSec?.bd }}>
-                  <Image size={28} style={{ color: visualRevision % 2 ? "#378ADD" : curSec?.c }} />
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>
-                    {visualRevision % 2 ? "重绘数据视觉" : "多模态素材区"}
-                  </div>
-                  <div style={S.barRow}><span style={{ ...S.bar, width: "76%", background: curSec?.c }} /><span style={{ ...S.bar, width: "48%", background: "#D4537E" }} /></div>
-                  <div style={S.barRow}><span style={{ ...S.bar, width: "58%", background: "#1D9E75" }} /><span style={{ ...S.bar, width: "84%", background: "#378ADD" }} /></div>
-                </div>
+            </div>
+            {selRect && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: selRect.x,
+                  top: selRect.y,
+                  width: selRect.w,
+                  height: selRect.h,
+                  border: "2px dashed #7F77DD",
+                  background: "rgba(127,119,221,0.12)",
+                  borderRadius: 4,
+                  pointerEvents: "none",
+                }}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const agentPanel = (
+    <div
+      style={{
+        ...S.agentPanel,
+        ...(shellNarrow ? { borderTop: "0.5px solid var(--color-border-tertiary)" } : { borderLeft: "0.5px solid var(--color-border-tertiary)" }),
+      }}
+    >
+      <div style={S.agentHead}>
+        <div style={S.segmented}>
+          {[
+            ["versions", "版本树"],
+            ["proposals", "精修方案"],
+          ].map(([id, label]) => {
+            const active = rightTab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setRightTab(id)}
+                style={{
+                  ...S.segmentBtn,
+                  background: active ? "#EEEDFE" : "transparent",
+                  color: active ? "#3C3489" : "var(--color-text-secondary)",
+                  fontWeight: active ? 650 : 500,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+        {rightTab === "versions" ? (
+          <VersionTree vers={vers} curV={curV} restore={restore} />
+        ) : (
+          <div style={{ height: "100%", padding: 12, display: "grid", gap: 10, overflowY: "auto" }}>
+            {!intent.trim() ? (
+              <div style={{ border: "1px dashed var(--color-border-tertiary)", borderRadius: 8, padding: 14, color: "var(--color-text-tertiary)", fontSize: 11, lineHeight: 1.7, background: "var(--color-background-secondary)" }}>
+                在左侧输入修改意图后，这里会即时生成三张 mock 精修方案图。可先框选标题、正文或图表区域，让方案更聚焦。
               </div>
-              {selRect && (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: selRect.x,
-                    top: selRect.y,
-                    width: selRect.w,
-                    height: selRect.h,
-                    border: "2px dashed #7F77DD",
-                    background: "rgba(127,119,221,0.12)",
-                    borderRadius: 4,
-                    pointerEvents: "none",
-                  }}
+            ) : (
+              proposals.map((proposal) => (
+                <RefineProposalCard
+                  key={proposal.index}
+                  proposal={proposal}
+                  curSec={curSec}
+                  onApprove={() => approveProposal(proposal)}
                 />
-              )}
-            </div>
+              ))
+            )}
           </div>
-        </div>
+        )}
       </div>
-      <div style={S.agentPanel}>
-        <div style={S.agentHead}>
-          <div style={S.segmented}>
-            {[
-              ["versions", "版本树"],
-              ["proposals", "精修方案"],
-            ].map(([id, label]) => {
-              const active = rightTab === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setRightTab(id)}
-                  style={{
-                    ...S.segmentBtn,
-                    background: active ? "#EEEDFE" : "transparent",
-                    color: active ? "#3C3489" : "var(--color-text-secondary)",
-                    fontWeight: active ? 650 : 500,
-                  }}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-          {rightTab === "versions" ? (
-            <VersionTree vers={vers} curV={curV} restore={restore} />
-          ) : (
-            <div style={{ height: "100%", padding: 12, display: "grid", gap: 10, overflowY: "auto" }}>
-              {!intent.trim() ? (
-                <div style={{ border: "1px dashed var(--color-border-tertiary)", borderRadius: 8, padding: 14, color: "var(--color-text-tertiary)", fontSize: 11, lineHeight: 1.7, background: "var(--color-background-secondary)" }}>
-                  在左侧输入修改意图后，这里会即时生成三张 mock 精修方案图。可先框选标题、正文或图表区域，让方案更聚焦。
-                </div>
-              ) : (
-                proposals.map((proposal) => (
-                  <RefineProposalCard
-                    key={proposal.index}
-                    proposal={proposal}
-                    curSec={curSec}
-                    onApprove={() => approveProposal(proposal)}
-                  />
-                ))
-              )}
-            </div>
-          )}
-        </div>
+    </div>
+  );
+
+  if (shellNarrow) {
+    return (
+      <div style={{ ...S.refineRoot, ...S.refineRootNarrow }}>
+        <div style={S.refineStackIntent}>{leftPanel}</div>
+        {canvasCol}
+        <div style={S.refineStackAgent}>{agentPanel}</div>
       </div>
+    );
+  }
+
+  return (
+    <div style={S.refineRoot}>
+      {leftPanel}
+      {canvasCol}
+      {agentPanel}
     </div>
   );
 }
@@ -830,11 +1001,11 @@ function refineTitle(title, intent) {
   return `${title}：${cleanIntent}`;
 }
 
-function classifyRegion(rect) {
+function classifyRegion(rect, slideW, slideH) {
   if (!rect) return "none";
   const midY = rect.y + rect.h / 2;
-  if (midY < 150) return "title";
-  if (midY > 235 && rect.x > 390) return "visual";
+  if (midY < slideH * 0.33) return "title";
+  if (midY > slideH * 0.52 && rect.x > slideW * 0.54) return "visual";
   return "body";
 }
 
