@@ -99,7 +99,10 @@ function App() {
         {/* SLOT:intro */}
         {showIntro && view === "intent" && (
           <Intro
-            onDone={() => handleStageJump("visual")}
+            onDone={(draft) => {
+              if (draft) story.seedStoryline(draft);
+              handleStageJump("visual");
+            }}
           />
         )}
         {view === "refine" ? (
