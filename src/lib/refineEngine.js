@@ -73,6 +73,21 @@ export function polishOnMerge(sections, toI, insertAt, fromTitle) {
   return { sections: next, summary };
 }
 
+// ---- 子页拆分为独立章后的润色 ----------------------------------------------
+// 被提升的页成为新章首页：补一句"独立成章"的开篇导语，说明其原始归属。
+export function polishOnSplit(sections, newI, fromTitle) {
+  const next = cloneSections(sections);
+  const sec = next[newI];
+  if (!sec || !sec.pages?.length) return { sections: next, summary: "" };
+
+  const head = sec.pages[0];
+  const { body } = splitLead(head.b);
+  head.b = joinLead(`独立成章，原属「${fromTitle}」`, body);
+
+  const summary = `已将该页从「${fromTitle}」拆出，提升为独立章节「${sec.title}」，并补写了开篇导语。`;
+  return { sections: next, summary };
+}
+
 // ---- general 指令变换 ------------------------------------------------------
 const FILLER = ["的全新范式", "全新", "持续", "深度", "进一步", "非常", "十分", "可以说", "在某种程度上", "其实", "通过"];
 

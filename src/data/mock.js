@@ -6,7 +6,7 @@ const VISUAL_IMAGES = [
   "/canva_data/Beige%20Minimalist%20Ad%20Campaign%20Creative%20Brief%20Presentation%20(2).png",
 ];
 
-const palettes = [
+export const palettes = [
   { c: "#7F77DD", bg: "#EEEDFE", bd: "#CECBF6", accent: "#D4537E" },
   { c: "#D4537E", bg: "#FBEAF0", bd: "#F4C0D1", accent: "#1D9E75" },
   { c: "#1D9E75", bg: "#E1F5EE", bd: "#9FE1CB", accent: "#378ADD" },

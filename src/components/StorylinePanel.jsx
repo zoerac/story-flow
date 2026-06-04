@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
+import { ArrowUpFromLine, BookOpen, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 
 export function StorylinePanel({
   secs,
@@ -13,12 +13,16 @@ export function StorylinePanel({
   setOverI,
   onDrop,
   onMergeSection,
+  onSplitPage,
   commitVersion,
 }) {
   const [openIds, setOpenIds] = useState(() => new Set([secs[0]?.id].filter(Boolean)));
   const [pageDrag, setPageDrag] = useState(null);
   const [pageOver, setPageOver] = useState(null);
   const [mergeOverI, setMergeOverI] = useState(null);
+  const [splitOver, setSplitOver] = useState(false);
+  // 拖动的页所属章是否多于一页：单页章拆出会留下空章，故不提供拆分入口
+  const canSplit = pageDrag != null && (secs[pageDrag.sectionIndex]?.pages.length || 0) > 1;
   const pageCount = secs.reduce((sum, s) => sum + s.pages.length, 0);
 
   const toggleOpen = (id) => {
@@ -188,6 +192,7 @@ export function StorylinePanel({
                         e.stopPropagation();
                         setPageDrag(null);
                         setPageOver(null);
+                        setSplitOver(false);
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -218,6 +223,38 @@ export function StorylinePanel({
             )}
           </div>
         ))}
+        {canSplit && (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setSplitOver(true);
+            }}
+            onDragLeave={() => setSplitOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSplitPage?.(pageDrag.sectionIndex, pageDrag.pageIndex);
+              setPageDrag(null);
+              setPageOver(null);
+              setSplitOver(false);
+            }}
+            style={{
+              marginTop: 8,
+              padding: "12px 10px",
+              borderRadius: 8,
+              border: `1.5px dashed ${splitOver ? "var(--color-text-secondary)" : "var(--color-border-secondary)"}`,
+              background: splitOver ? "var(--color-background-tertiary)" : "var(--color-background-secondary)",
+              color: splitOver ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
+              fontSize: 11,
+              textAlign: "center",
+              transition: "background 0.12s, border 0.12s, color 0.12s",
+            }}
+          >
+            <ArrowUpFromLine size={13} style={{ verticalAlign: -2, marginRight: 5 }} />
+            拖到此处 → 提升为独立章节
+          </div>
+        )}
       </div>
     </div>
   );

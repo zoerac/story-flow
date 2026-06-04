@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { AI_CHAT, INIT, cloneSections, pick } from "../data/mock";
-import { applyIntent, parseIntent, polishOnMerge, polishOnReorder } from "../lib/refineEngine";
+import { AI_CHAT, INIT, cloneSections, palettes, pick } from "../data/mock";
+import { applyIntent, parseIntent, polishOnMerge, polishOnReorder, polishOnSplit } from "../lib/refineEngine";
 
 export function useStoryflow() {
   const [secs, setSecs] = useState(() => cloneSections(INIT));
@@ -118,6 +118,45 @@ export function useStoryflow() {
     addMsg("ai", summary, { label: "撤销合并", undoTo });
   };
 
+  // 子页拆出为独立章：被拖的页脱离原章，提升为新的一级章节，插入原章之后
+  const splitPageOut = (fromI, pageI) => {
+    const from = secs[fromI];
+    // 单页章拆出会留下空章，视为 no-op；越界同理
+    if (!from || from.pages.length <= 1 || !from.pages[pageI]) {
+      setDragI(null);
+      setOverI(null);
+      return;
+    }
+
+    const next = cloneSections(secs);
+    const [page] = next[fromI].pages.splice(pageI, 1);
+
+    const insertAt = fromI + 1;
+    // 按插入后的章数循环取配色，保证与既有章视觉区分
+    const palette = palettes[next.length % palettes.length];
+    const existingIds = new Set(next.flatMap((s) => s.pages.map((p) => p.id)));
+    const pageId = existingIds.has(page.id) ? `${page.id}-out` : page.id;
+    const newSec = {
+      id: `sec-${pageId}`,
+      title: page.h,
+      sub: `自「${from.title}」拆出`,
+      c: palette.c,
+      bg: palette.bg,
+      bd: palette.bd,
+      pages: [{ ...page, id: pageId }],
+    };
+    next.splice(insertAt, 0, newSec);
+
+    const { sections: polished, summary } = polishOnSplit(next, insertAt, from.title);
+    const undoTo = curV;
+    commitVersion(`${page.h} 拆为独立章`, polished);
+    setSel(insertAt);
+    setSelPage(0);
+    setDragI(null);
+    setOverI(null);
+    addMsg("ai", summary, { label: "撤销拆分", undoTo });
+  };
+
   const restore = (vid) => {
     const v = vers.find((x) => x.id === vid);
     if (!v) return;
@@ -227,6 +266,7 @@ export function useStoryflow() {
     addMsg,
     onDrop,
     mergeSection,
+    splitPageOut,
     restore,
     saveVersion,
     toggleSaved,
