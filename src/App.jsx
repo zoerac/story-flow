@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowLeft, Check, Image, Minus, MousePointer2, Plus, Sparkles, Type, Wand2 } from "lucide-react";
+import { ArrowLeft, Image, Minus, Plus, Sparkles, Type } from "lucide-react";
 import { ChatPanel } from "./components/ChatPanel";
 import { Intro } from "./components/Intro";
 import { StorylinePanel } from "./components/StorylinePanel";
@@ -10,8 +10,6 @@ import {
   VISUAL_CANVA_TEMPLATES,
   VISUAL_INTENT_SUMMARY,
   applyVisualToSections,
-  buildRefineLayoutProposal,
-  polishRefineText,
   rankVisualCandidates,
   REFINE_IMAGE_CANDIDATES,
 } from "./data/mock";
@@ -913,15 +911,11 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
   );
 }
 
-function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addMsg, onBack }) {
+function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBack }) {
   const [zoom, setZoom] = useState(1);
   const [activeId, setActiveId] = useState("title");
-  const [rightTab, setRightTab] = useState("edit");
-  const [selection, setSelection] = useState(null);
-  const [selectionDraft, setSelectionDraft] = useState("");
-  const [layoutProposal, setLayoutProposal] = useState(null);
-  const [proposalOpen, setProposalOpen] = useState(false);
-  const [proposalAdvice, setProposalAdvice] = useState("");
+  const [rightTab, setRightTab] = useState("materials");
+  const [editNote, setEditNote] = useState("");
   const [gesture, setGesture] = useState(null);
   const [imageChoice, setImageChoice] = useState(REFINE_IMAGE_CANDIDATES[0]);
   const [textEdits, setTextEdits] = useState({});
@@ -934,13 +928,10 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
   const displayTitle = pageText.title ?? curPage?.h ?? "当前页标题";
   const displayBody = pageText.body ?? curPage?.b ?? "当前页正文";
   const activeMaterial = REFINE_MATERIAL_DEFS.find((item) => item.id === activeId);
-  const selectedMaterials = selection ? REFINE_MATERIAL_DEFS.filter((item) => rectsIntersect(selection, layouts[item.id])) : [];
-  const selectedRegion = selectedMaterials.length ? selectedMaterials.map((item) => item.label).join("、") : "圈选区域";
 
   const setZoomClamped = (next) => setZoom((prev) => Math.min(1.8, Math.max(0.6, typeof next === "function" ? next(prev) : next)));
   const updateText = (kind, value) => setTextEdits((prev) => ({ ...prev, [pageKey]: { ...prev[pageKey], [kind]: value } }));
   const updateLayout = (id, patch) => setLayouts((prev) => ({ ...prev, [id]: clampLayout({ ...prev[id], ...patch }) }));
-  const setPanel = (tab) => setRightTab(tab);
 
   const pointFromEvent = (e) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -951,25 +942,11 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
     };
   };
 
-  const startSelection = (e) => {
-    if (e.target.closest("[data-material-id]")) return;
-    const point = pointFromEvent(e);
-    if (!point) return;
-    setActiveId(null);
-    setPanel("edit");
-    setSelectionDraft("");
-    setLayoutProposal(null);
-    setGesture({ type: "select", start: point });
-    setSelection({ x: point.x, y: point.y, w: 0, h: 0 });
-  };
-
   const startMaterialMove = (e, id) => {
     e.stopPropagation();
     const material = REFINE_MATERIAL_DEFS.find((item) => item.id === id);
     setActiveId(id);
-    setSelection(null);
-    setLayoutProposal(null);
-    setPanel("edit");
+    setRightTab("materials");
     if (!material) return;
     const point = pointFromEvent(e);
     if (!point) return;
@@ -988,15 +965,6 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
     if (!gesture) return;
     const point = pointFromEvent(e);
     if (!point) return;
-    if (gesture.type === "select") {
-      setSelection({
-        x: Math.min(gesture.start.x, point.x),
-        y: Math.min(gesture.start.y, point.y),
-        w: Math.abs(point.x - gesture.start.x),
-        h: Math.abs(point.y - gesture.start.y),
-      });
-      return;
-    }
     const dx = point.x - gesture.start.x;
     const dy = point.y - gesture.start.y;
     if (gesture.type === "move") {
@@ -1011,55 +979,20 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
     }
   };
 
-  const onMouseUp = () => {
-    if (gesture?.type === "select") {
-      setSelection((rect) => {
-        if (!rect || rect.w * rect.h < 500) return null;
-        setPanel("edit");
-        return rect;
-      });
-    }
-    setGesture(null);
-  };
-
-  const polishText = (kind) => {
-    const current = kind === "title" ? displayTitle : displayBody;
-    const polished = polishRefineText(kind, current, selectionDraft);
-    updateText(kind, polished);
-    addMsg("sys", `已对${kind === "title" ? "标题" : "正文"}生成 mock AI 润色结果，当前仅更新精修页展示。`);
-  };
-
-  const generateLayout = () => {
-    if (!selection) return;
-    setLayoutProposal(buildRefineLayoutProposal(selectionDraft, selectedRegion));
-    setProposalOpen(true);
-    setPanel("edit");
-  };
-
-  const reviseLayoutProposal = () => {
-    if (!selection) return;
-    const nextIntent = [selectionDraft, proposalAdvice].filter((item) => item.trim()).join("；修改建议：");
-    setLayoutProposal(buildRefineLayoutProposal(nextIntent, selectedRegion));
-    setProposalOpen(true);
-  };
-
-  const applyLayoutProposal = () => {
-    if (!layoutProposal) return;
-    setLayouts((prev) => {
-      const next = { ...prev };
-      Object.entries(layoutProposal.patch).forEach(([id, rect]) => {
-        next[id] = clampLayout({ ...next[id], ...rect });
-      });
-      return next;
-    });
-    setSelection(null);
-    setLayoutProposal(null);
-    setProposalOpen(false);
-    setProposalAdvice("");
-    addMsg("sys", `已采纳「${layoutProposal.title}」mock 重构方案，仅调整当前精修画布布局。`);
-  };
+  const onMouseUp = () => setGesture(null);
 
   const materialCanResize = activeId && layouts[activeId];
+  const resizeTextMaterial = (delta) => {
+    if (!materialCanResize) return;
+    const current = layouts[activeId];
+    const nextH = current.h + delta.h;
+    const scale = Math.max(0.7, Math.min(1.8, nextH / Math.max(1, current.h)));
+    updateLayout(activeId, {
+      w: current.w + delta.w,
+      h: nextH,
+      fontSize: Math.round((current.fontSize || defaultFontSize(activeId)) * scale),
+    });
+  };
 
   return (
     <div
@@ -1089,7 +1022,6 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
             <div style={{ width: 720 * zoom, height: 450 * zoom, position: "relative", flexShrink: 0 }}>
               <div
                 ref={canvasRef}
-                onMouseDown={startSelection}
                 onMouseMove={onMouseMove}
                 onMouseUp={onMouseUp}
                 style={{
@@ -1097,7 +1029,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
                   transform: `scale(${zoom})`,
                   transformOrigin: "top left",
                   borderColor: curSec?.bd,
-                  cursor: gesture?.type ? "crosshair" : "default",
+                  cursor: "default",
                   padding: 0,
                 }}
               >
@@ -1131,39 +1063,22 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
                   </div>
                   {activeId === "visual" && <button type="button" aria-label="缩放图片素材" onMouseDown={(e) => startResize(e, "visual")} style={resizeHandleStyle} />}
                 </RefineMaterialBox>
-                {selection && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: selection.x,
-                      top: selection.y,
-                      width: selection.w,
-                      height: selection.h,
-                      border: "2px dashed #7F77DD",
-                      background: "rgba(127,119,221,0.12)",
-                      borderRadius: 4,
-                      pointerEvents: "none",
-                    }}
-                  />
-                )}
               </div>
             </div>
           </div>
         </section>
 
         <section style={S.refineSection}>
-          <div style={{ padding: 12, display: "grid", gridTemplateColumns: "auto minmax(0,1fr) auto", gap: 10, alignItems: "center" }}>
+          <div style={{ padding: 12, display: "grid", gap: 8 }}>
             <span style={{ ...S.selectedMaterialBadge, borderColor: curSec?.bd, background: curSec?.bg, color: curSec?.c }}>
-              {selection ? `已圈出 ${selectedMaterials.length || 1} 个问题区域` : activeMaterial ? `当前素材：${activeMaterial.label}` : "点击素材或圈出区域"}
+              {activeMaterial ? `当前素材：${activeMaterial.label}` : "点击画布素材进行编辑"}
             </span>
-            <span style={S.intentSuggestion}>
-              {selection ? "输入要求后生成布局重构方案" : activeMaterial?.kind === "image" ? "图片素材可替换、拖动和缩放" : activeMaterial?.kind === "decor" ? "装饰素材可拖动调整位置" : "文本素材可编辑、拖动和缩放"}
-            </span>
-            {selection && (
-              <button type="button" onClick={generateLayout} style={{ ...S.approveBtn, width: 128 }}>
-                <Wand2 size={13} /> 生成方案
-              </button>
-            )}
+            <textarea
+              value={editNote}
+              onChange={(e) => setEditNote(e.target.value)}
+              placeholder="记录本页精修要求。当前版本只演示素材直接操作：拖动素材、编辑文字、替换图片、缩放文本框或图片。"
+              style={{ ...S.intentInput, minHeight: 76 }}
+            />
           </div>
         </section>
       </div>
@@ -1173,8 +1088,8 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
           <div style={S.agentHead}>
             <div style={S.segmented}>
               {[
-                ["edit", "素材操作"],
                 ["versions", "版本树"],
+                ["materials", "素材操作"],
               ].map(([id, label]) => {
                 const active = rightTab === id;
                 return (
@@ -1200,21 +1115,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
               <VersionTree vers={vers} curV={curV} restore={restore} />
             ) : (
               <div style={{ height: "100%", padding: 12, display: "grid", gap: 12, alignContent: "start", overflowY: "auto" }}>
-                {selection ? (
-                  <SelectionRefinePanel
-                    value={selectionDraft}
-                    onChange={setSelectionDraft}
-                    proposal={layoutProposal}
-                    open={proposalOpen}
-                    onOpen={setProposalOpen}
-                    advice={proposalAdvice}
-                    onAdvice={setProposalAdvice}
-                    selectedRegion={selectedRegion}
-                    onGenerate={generateLayout}
-                    onRevise={reviseLayoutProposal}
-                    onApply={applyLayoutProposal}
-                  />
-                ) : activeMaterial?.kind === "image" ? (
+                {activeMaterial?.kind === "image" ? (
                   <ImageRefinePanel
                     choice={imageChoice}
                     onChoice={setImageChoice}
@@ -1230,21 +1131,8 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
                     body={displayBody}
                     onTitle={(value) => updateText("title", value)}
                     onBody={(value) => updateText("body", value)}
-                    onPolish={polishText}
-                    intent={selectionDraft}
-                    onIntent={setSelectionDraft}
                     layout={layouts[activeId] || layouts.title}
-                    onResize={(delta) => {
-                      if (!materialCanResize) return;
-                      const current = layouts[activeId];
-                      const nextH = current.h + delta.h;
-                      const scale = Math.max(0.7, Math.min(1.8, nextH / Math.max(1, current.h)));
-                      updateLayout(activeId, {
-                        w: current.w + delta.w,
-                        h: nextH,
-                        fontSize: Math.round((current.fontSize || defaultFontSize(activeId)) * scale),
-                      });
-                    }}
+                    onResize={resizeTextMaterial}
                     onStyle={(patch) => materialCanResize && updateLayout(activeId, patch)}
                   />
                 )}
@@ -1281,9 +1169,10 @@ function RefineMaterialBox({ id, active, layout, onMouseDown, children }) {
   );
 }
 
-function TextRefinePanel({ activeId, title, body, onTitle, onBody, onPolish, intent, onIntent, layout, onResize, onStyle }) {
-  const editingBody = activeId === "body";
+function TextRefinePanel({ activeId, title, body, onTitle, onBody, layout, onResize, onStyle }) {
   const activeTextLabel = materialLabel(activeId);
+  const showTitleEditor = activeId === "title";
+  const showBodyEditor = activeId === "body";
   return (
     <>
       <PanelTitle icon={<Type size={14} />} title="文本编辑" />
@@ -1312,21 +1201,21 @@ function TextRefinePanel({ activeId, title, body, onTitle, onBody, onPolish, int
           </select>
         </label>
       </div>
-      <label style={S.agentBlock}>
-        <span style={S.agentLabel}>标题</span>
-        <textarea value={title} onChange={(e) => onTitle(e.target.value)} style={{ ...S.intentInput, minHeight: 82 }} />
-      </label>
-      <label style={S.agentBlock}>
-        <span style={S.agentLabel}>正文</span>
-        <textarea value={body} onChange={(e) => onBody(e.target.value)} style={{ ...S.intentInput, minHeight: 110 }} />
-      </label>
-      <label style={S.agentBlock}>
-        <span style={S.agentLabel}>AI 润色要求</span>
-        <textarea value={intent} onChange={(e) => onIntent(e.target.value)} placeholder="例如：更像高管汇报、减少铺垫、突出结构层价值。" style={{ ...S.intentInput, minHeight: 70 }} />
-      </label>
-      <button type="button" onClick={() => onPolish(editingBody ? "body" : "title")} style={S.approveBtn}>
-        <Sparkles size={13} /> AI 润色{editingBody ? "正文" : "标题"}
-      </button>
+      {showTitleEditor && (
+        <label style={S.agentBlock}>
+          <span style={S.agentLabel}>标题文字</span>
+          <textarea value={title} onChange={(e) => onTitle(e.target.value)} style={{ ...S.intentInput, minHeight: 108 }} />
+        </label>
+      )}
+      {showBodyEditor && (
+        <label style={S.agentBlock}>
+          <span style={S.agentLabel}>正文文字</span>
+          <textarea value={body} onChange={(e) => onBody(e.target.value)} style={{ ...S.intentInput, minHeight: 132 }} />
+        </label>
+      )}
+      {!showTitleEditor && !showBodyEditor && (
+        <span style={S.intentSuggestion}>这个文字素材暂时只支持拖动、缩放、字号和字体调整。</span>
+      )}
       <div style={{ ...S.agentBlock, marginTop: 2 }}>
         <span style={S.agentLabel}>文本框尺寸</span>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -1390,68 +1279,6 @@ function DecorRefinePanel({ layout, onResize }) {
         </div>
         <span style={S.intentSuggestion}>当前宽度 {Math.round(layout.w)}，可在画布直接拖动位置。</span>
       </div>
-    </>
-  );
-}
-
-function SelectionRefinePanel({ value, onChange, proposal, open, onOpen, advice, onAdvice, selectedRegion, onGenerate, onRevise, onApply }) {
-  return (
-    <>
-      <PanelTitle icon={<MousePointer2 size={14} />} title="框选精修" />
-      <span style={S.chip}>问题区域：{selectedRegion}</span>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="描述不满意的地方，例如：右侧图太抢、正文太散、标题和素材缺少呼应。"
-        style={{ ...S.intentInput, minHeight: 102 }}
-      />
-      <button type="button" onClick={onGenerate} style={S.approveBtn}>
-        <Wand2 size={13} /> AI 生成布局重构方案
-      </button>
-      {proposal && (
-        <div className="anim-fade-up" style={S.proposalCard}>
-          <button
-            type="button"
-            onClick={() => onOpen(!open)}
-            style={{ border: 0, background: "transparent", padding: 0, textAlign: "left", fontFamily: "inherit", cursor: "pointer" }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 650 }}>{proposal.title}</div>
-            <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", marginTop: 2 }}>{open ? "收起详情" : "点开查看方案详情"}</div>
-          </button>
-          <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", lineHeight: 1.6 }}>{proposal.summary}</div>
-          <div style={S.proposalImage}>
-            <div style={{ width: "58%", height: 10, borderRadius: 5, background: "#7F77DD" }} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <span style={{ height: 58, borderRadius: 7, background: "#EEEDFE", border: "1px solid #CECBF6" }} />
-              <span style={{ height: 58, borderRadius: 7, background: "#E6F1FB", border: "1px solid #B5D4F4" }} />
-            </div>
-          </div>
-          {open && (
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ display: "grid", gap: 5 }}>
-                {Object.entries(proposal.patch).map(([id, rect]) => (
-                  <div key={id} style={{ display: "grid", gridTemplateColumns: "64px minmax(0,1fr)", gap: 6, fontSize: 10, color: "var(--color-text-secondary)" }}>
-                    <span style={{ fontWeight: 650 }}>{materialLabel(id)}</span>
-                    <span>x {rect.x} · y {rect.y} · {rect.w} x {rect.h}</span>
-                  </div>
-                ))}
-              </div>
-              <textarea
-                value={advice}
-                onChange={(e) => onAdvice(e.target.value)}
-                placeholder="继续给这个方案提修改建议，例如：标题再小一点、图片不要遮住正文、留白更多。"
-                style={{ ...S.intentInput, minHeight: 76 }}
-              />
-              <button type="button" onClick={onRevise} style={S.rejectBtn}>
-                <Wand2 size={13} /> 按建议再生成
-              </button>
-            </div>
-          )}
-          <button type="button" onClick={onApply} style={S.approveBtn}>
-            <Check size={13} /> 采纳重构
-          </button>
-        </div>
-      )}
     </>
   );
 }
@@ -1521,10 +1348,6 @@ function clampLayout(rect) {
     ...(fontSize ? { fontSize } : {}),
     ...(rect.fontFamily ? { fontFamily: rect.fontFamily } : {}),
   };
-}
-
-function rectsIntersect(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
 function isTextMaterial(id) {
