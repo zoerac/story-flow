@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { ChatPanel } from "./components/ChatPanel";
+import { Intro } from "./components/Intro";
 import { SlidePreview } from "./components/SlidePreview";
 import { StorylinePanel } from "./components/StorylinePanel";
 import { Toolbar } from "./components/Toolbar";
@@ -8,6 +9,7 @@ import { useStoryflow } from "./hooks/useStoryflow";
 
 function App() {
   const story = useStoryflow();
+  const [showIntro, setShowIntro] = useState(true);
   const [layout, setLayout] = useState({
     leftW: 220,
     rightW: 190,
@@ -56,6 +58,7 @@ function App() {
           setRightOpen={setRightOpen}
         />
         {/* SLOT:intro */}
+        {showIntro && <Intro onDone={() => setShowIntro(false)} />}
         <div
           style={{
             ...S.root,
