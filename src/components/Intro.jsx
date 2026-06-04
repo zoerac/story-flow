@@ -49,6 +49,7 @@ export function Intro({ onDone }) {
 
   return (
     <div
+      className="anim-fade"
       style={{
         position: "fixed",
         inset: 0,
@@ -134,6 +135,7 @@ export function Intro({ onDone }) {
       >
         {currentStepIdx >= 0 && (
           <div
+            className="anim-pop"
             style={{
               position: "absolute",
               left: 14,
@@ -152,12 +154,14 @@ export function Intro({ onDone }) {
               {INTRO_STEPS[currentStepIdx].question}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {INTRO_STEPS[currentStepIdx].chips.map((chip) => (
+              {INTRO_STEPS[currentStepIdx].chips.map((chip, i) => (
                 <button
                   key={chip}
                   type="button"
                   onClick={() => pickChip(currentStepIdx, chip)}
+                  className="anim-fade-up"
                   style={{
+                    animationDelay: `${i * 40}ms`,
                     minHeight: 30,
                     fontSize: 11,
                     color: "var(--color-text-secondary)",
@@ -192,6 +196,7 @@ export function Intro({ onDone }) {
           {/* Summary card */}
           {summary && (
             <div
+              className="anim-scale"
               style={{
                 background: "#FAFAFE",
                 border: "0.5px solid #CECBF6",
@@ -340,7 +345,7 @@ export function Intro({ onDone }) {
 
 function AiBubble({ children }) {
   return (
-    <div style={{ display: "flex", justifyContent: "flex-start" }}>
+    <div className="anim-fade-up" style={{ display: "flex", justifyContent: "flex-start" }}>
       <div
         style={{
           padding: "7px 11px",
@@ -361,7 +366,7 @@ function AiBubble({ children }) {
 
 function UserBubble({ children }) {
   return (
-    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+    <div className="anim-fade-up" style={{ display: "flex", justifyContent: "flex-end" }}>
       <div
         style={{
           padding: "7px 11px",
