@@ -111,6 +111,7 @@ function App() {
               secs={story.secs}
               sel={story.sel}
               selPage={story.selPage}
+              visual={story.visual}
               rightOpen={layout.rightOpen}
               vers={story.vers}
               curV={story.curV}
@@ -126,6 +127,7 @@ function App() {
             <VisualSelectionPage
               onGenerate={(visual) => {
                 const nextSecs = applyVisualToSections(visual, story.secs);
+                story.setVisual(visual);
                 story.commitVersion(`主视觉：${visual.title}`, nextSecs, {
                   stage: "structure",
                   kind: "edit",
@@ -175,6 +177,7 @@ function App() {
                 setSel={story.setSel}
                 selPage={story.selPage}
                 setSelPage={story.setSelPage}
+                visual={story.visual}
               />
               <ChatPanel
                 msgs={story.msgs}
@@ -751,7 +754,7 @@ function VisualSelectionPage({ onGenerate }) {
 
   return (
     <div style={S.visualRoot}>
-      <div style={S.visualHeader}>
+      <div className="anim-fade-up" style={S.visualHeader}>
         <textarea
           value={intent}
           onChange={(e) => setIntent(e.target.value)}
@@ -837,6 +840,8 @@ function VisualCandidateCard({ item, active, onSelect, index = 0 }) {
         borderColor: active ? item.bd : "var(--color-border-tertiary)",
         background: active ? item.bg : "var(--color-background-primary)",
         boxShadow: active ? `0 0 0 1px ${item.bd}` : "none",
+        transform: active ? "translateY(-2px)" : "none",
+        transition: "transform 0.16s var(--ease-out), border-color 0.16s, background 0.16s, box-shadow 0.16s",
       }}
     >
       <div style={S.visualThumb}>
@@ -855,35 +860,51 @@ function VisualCandidateCard({ item, active, onSelect, index = 0 }) {
   );
 }
 
-function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
+function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage, visual }) {
   const curSec = secs[sel];
   const curPage = curSec?.pages[selPage] || curSec?.pages[0];
+  // 切章/翻页/内容被改写时都重新触发幻灯卡片入场动画，呼应意图对齐页的生动感
+  const slideKey = `${sel}-${selPage}-${curPage?.h || ""}-${curPage?.b || ""}`;
 
   return (
     <div style={S.previewWrap}>
-      <div style={S.slideCard}>
-        <div style={{ width: 28, height: 3, borderRadius: 2, background: curSec?.c, marginBottom: 10 }} />
-        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 5 }}>{curPage?.h}</div>
-        <div style={{ fontSize: 10, color: "var(--color-text-secondary)", lineHeight: 1.6 }}>{curPage?.b}</div>
-        <div style={{ display: "flex", gap: 4, marginTop: 12 }}>
-          {curSec?.pages.map((page, j) => (
-            <button
-              key={page.id}
-              type="button"
-              onClick={() => setSelPage(j)}
-              aria-label={`选择第 ${j + 1} 页`}
-              style={{
-                flex: 1,
-                height: 4,
-                minWidth: 0,
-                padding: 0,
-                borderRadius: 2,
-                background: j === selPage ? curSec.c : curSec.bg,
-                border: `0.5px solid ${curSec.bd}`,
-                cursor: "pointer",
-              }}
+      <div key={slideKey} className="anim-pop" style={{ ...S.slideCard, position: "relative" }}>
+        {visual?.image && (
+          <>
+            <img
+              src={visual.image}
+              alt=""
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
             />
-          ))}
+            {/* 半透明遮罩沿用章节配色，保证标题/正文清晰叠加在模板图之上 */}
+            <div style={{ position: "absolute", inset: 0, background: curSec?.bg || "#ffffff", opacity: 0.82 }} />
+          </>
+        )}
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ width: 28, height: 3, borderRadius: 2, background: curSec?.c, marginBottom: 10 }} />
+          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 5 }}>{curPage?.h}</div>
+          <div style={{ fontSize: 10, color: "var(--color-text-secondary)", lineHeight: 1.6 }}>{curPage?.b}</div>
+          <div style={{ display: "flex", gap: 4, marginTop: 12 }}>
+            {curSec?.pages.map((page, j) => (
+              <button
+                key={page.id}
+                type="button"
+                onClick={() => setSelPage(j)}
+                aria-label={`选择第 ${j + 1} 页`}
+                style={{
+                  flex: 1,
+                  height: 4,
+                  minWidth: 0,
+                  padding: 0,
+                  borderRadius: 2,
+                  background: j === selPage ? curSec.c : curSec.bg,
+                  border: `0.5px solid ${curSec.bd}`,
+                  cursor: "pointer",
+                  transition: "background 0.2s",
+                }}
+              />
+            ))}
+          </div>
         </div>
       </div>
       <div style={{ display: "flex", justifyContent: "center", gap: 4, marginTop: 10 }}>
@@ -891,12 +912,14 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
           <button
             key={s.id}
             type="button"
+            className="anim-fade-up"
             onClick={() => {
               setSel(i);
               setSelPage(0);
             }}
             aria-label={`选择章节 ${s.title}`}
             style={{
+              animationDelay: `${Math.min(i * 40, 240)}ms`,
               width: i === sel ? 20 : 6,
               height: 6,
               padding: 0,
@@ -913,7 +936,14 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
   );
 }
 
-function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, saveVersion, toggleSaved, deleteVersion, onBack }) {
+function AIRefinePage({ secs, sel, selPage, visual, rightOpen, vers, curV, restore, saveVersion, toggleSaved, deleteVersion, onBack }) {
+  // 把主视觉阶段所选模板映射为图片素材候选，并置顶为默认项（用户仍可切换其余候选）
+  const visualChoice = visual
+    ? { id: visual.id, title: visual.title, image: visual.image, tint: visual.bg, accent: visual.accent }
+    : null;
+  const imageCandidates = visualChoice
+    ? [visualChoice, ...REFINE_IMAGE_CANDIDATES.filter((c) => c.id !== visualChoice.id)]
+    : REFINE_IMAGE_CANDIDATES;
   const [zoom, setZoom] = useState(1);
   const [activeId, setActiveId] = useState("title");
   const [rightTab, setRightTab] = useState("materials");
@@ -921,7 +951,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, save
   const [editNote, setEditNote] = useState("");
   const [selRect, setSelRect] = useState(null);
   const [gesture, setGesture] = useState(null);
-  const [imageChoice, setImageChoice] = useState(REFINE_IMAGE_CANDIDATES[0]);
+  const [imageChoice, setImageChoice] = useState(imageCandidates[0]);
   const [textEdits, setTextEdits] = useState({});
   const [layouts, setLayouts] = useState(() => cloneRefineLayouts());
   const canvasRef = useRef(null);
@@ -1108,6 +1138,17 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, save
                   padding: 0,
                 }}
               >
+                {visual?.image && (
+                  <>
+                    <img
+                      src={visual.image}
+                      alt=""
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
+                    />
+                    {/* 半透明遮罩沿用章节配色，保证素材文字清晰叠加在模板图之上 */}
+                    <div style={{ position: "absolute", inset: 0, background: curSec?.bg || "#ffffff", opacity: 0.82, pointerEvents: "none" }} />
+                  </>
+                )}
                 <span style={{ position: "absolute", left: 44, top: 42, width: 64, height: 6, borderRadius: 3, background: curSec?.c }} />
                 <RefineMaterialBox id="title" active={activeId === "title"} layout={layouts.title} onMouseDown={startMaterialMove}>
                   <div style={textMaterialStyle(layouts.title, { fontWeight: 650, lineHeight: 1.18, color: "var(--color-text-primary)" })}>{displayTitle}</div>
@@ -1127,7 +1168,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, save
                   {activeId === "body" && <button type="button" aria-label="缩放正文文本框" onMouseDown={(e) => startResize(e, "body")} style={resizeHandleStyle} />}
                 </RefineMaterialBox>
                 <RefineMaterialBox id="visual" active={activeId === "visual"} layout={layouts.visual} onMouseDown={startMaterialMove}>
-                  <div style={{ ...S.mockVisual, height: "100%", minHeight: 0, background: imageChoice.tint || curSec?.bg, borderColor: curSec?.bd }}>
+                  <div key={imageChoice.id} className="anim-pop" style={{ ...S.mockVisual, height: "100%", minHeight: 0, background: imageChoice.tint || curSec?.bg, borderColor: curSec?.bd }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <Image size={24} style={{ color: imageChoice.accent || curSec?.c }} />
                       <div style={{ fontSize: 15, fontWeight: 650, color: "var(--color-text-primary)" }}>{imageChoice.title}</div>
@@ -1231,6 +1272,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, save
                 {activeMaterial?.kind === "image" ? (
                   <ImageRefinePanel
                     choice={imageChoice}
+                    candidates={imageCandidates}
                     onChoice={setImageChoice}
                     layout={layouts.visual}
                     onResize={(delta) => updateLayout("visual", { w: layouts.visual.w + delta, h: layouts.visual.h + delta * 0.65 })}
@@ -1341,12 +1383,12 @@ function TextRefinePanel({ activeId, title, body, onTitle, onBody, layout, onRes
   );
 }
 
-function ImageRefinePanel({ choice, onChoice, layout, onResize }) {
+function ImageRefinePanel({ choice, candidates = REFINE_IMAGE_CANDIDATES, onChoice, layout, onResize }) {
   return (
     <>
       <PanelTitle icon={<Image size={14} />} title="图片素材" />
       <div style={{ display: "grid", gap: 8 }}>
-        {REFINE_IMAGE_CANDIDATES.map((item) => {
+        {candidates.map((item) => {
           const active = item.id === choice.id;
           return (
             <button

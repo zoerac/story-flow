@@ -65,6 +65,7 @@ export function StorylinePanel({
         {secs.map((s, i) => (
           <div
             key={s.id}
+            className="anim-fade-up"
             draggable
             onDragStart={() => setDragI(i)}
             onDragOver={(e) => {
@@ -103,6 +104,7 @@ export function StorylinePanel({
               setSelPage(0);
             }}
             style={{
+              animationDelay: `${Math.min(i * 40, 240)}ms`,
               padding: "8px 10px",
               marginBottom: 4,
               borderRadius: 8,
