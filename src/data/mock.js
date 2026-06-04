@@ -164,24 +164,183 @@ export const VISUAL_AI_GENERATIONS = [
   visualItem("ai", 17, "演示前体检雷达", "适合表达结构风险检测与自动建议。", ["体检", "风险", "建议"]),
 ];
 
-const tokenize = (text) => String(text || "").toLowerCase().split(/[\s,，。；;、：:]+/u).filter(Boolean);
+export const MOCK_STORYLINE_DRAFTS = [
+  {
+    id: "product-workflow",
+    match: ["产品", "AI", "工作流", "SaaS", "界面", "协作", "多模态", "结构"],
+    sections: [
+      {
+        id: "s1",
+        title: "产品定位",
+        sub: "AI Native 演示文稿编辑器",
+        pages: [
+          page("prod-s1p1", "StoryFlow：从结构开始生成 PPT", "面向产品汇报场景，先确定叙事骨架，再让 AI 补齐页面表达。"),
+          page("prod-s1p2", "用户真正缺的是结构协作", "传统工具偏逐页编辑，AI 工具偏一次性生成，二者都难以持续响应用户意图。"),
+        ],
+      },
+      {
+        id: "s2",
+        title: "核心能力",
+        sub: "故事线、素材与 AI 精修联动",
+        pages: [
+          page("prod-s2p1", "三层协作模型", "故事线负责方向，页面负责呈现，AI 精修负责把局部意图落到可用稿。"),
+          page("prod-s2p2", "多模态素材进入同一画布", "文本、图片、图表与版本记录共同构成可追踪的演示资产。"),
+        ],
+      },
+      {
+        id: "s3",
+        title: "工作流闭环",
+        sub: "从主视觉到结构编辑",
+        pages: [
+          page("prod-s3p1", "先选主视觉，再生成初稿", "视觉意图决定初始色板、页面密度和叙事口径，避免后续反复返工。"),
+          page("prod-s3p2", "结构调整实时影响 PPT", "拖拽章节、切换页面、恢复版本时，预览内容保持和故事线同步。"),
+        ],
+      },
+      {
+        id: "s4",
+        title: "落地价值",
+        sub: "更短路径与更稳定质量",
+        pages: [
+          page("prod-s4p1", "把汇报制作变成可迭代系统", "用户不再从空白页开始，而是在明确意图和版本树中持续推进。"),
+          page("prod-s4p2", "下一步：布局自适应", "让页面内容随结构变化自动重排，降低从初稿到可讲版本的成本。"),
+        ],
+      },
+    ],
+  },
+  {
+    id: "executive-data",
+    match: ["高管", "简报", "结论", "数据", "指标", "洞察", "仪表盘", "对比"],
+    sections: [
+      {
+        id: "s1",
+        title: "一句话结论",
+        sub: "先给决策层判断",
+        pages: [
+          page("exec-s1p1", "AI Native PPT 已具备产品化窗口", "结构编辑、版本回溯与局部精修形成完整闭环，适合进入场景验证。"),
+          page("exec-s1p2", "关键机会来自工作流重构", "价值不在单页生成，而在把汇报制作变成可控、可追踪、可复用的流程。"),
+        ],
+      },
+      {
+        id: "s2",
+        title: "业务痛点",
+        sub: "效率与质量同时受限",
+        pages: [
+          page("exec-s2p1", "当前制作链路存在三类损耗", "需求转译、页面返工、版本分叉让团队难以稳定复用高质量表达。"),
+        ],
+      },
+      {
+        id: "s3",
+        title: "验证指标",
+        sub: "用数据说明改进空间",
+        pages: [
+          page("exec-s3p1", "结构调整效率提升 68%", "用户在章节重排、口径收敛和页面检查上花费的时间显著下降。"),
+          page("exec-s3p2", "满意度稳定在 4.6 / 5", "参与者认为故事线优先的交互比直接生成整套 PPT 更容易掌控。"),
+        ],
+      },
+      {
+        id: "s4",
+        title: "推进建议",
+        sub: "小范围试点到能力扩展",
+        pages: [
+          page("exec-s4p1", "先锁定产品汇报与课程展示", "这两类场景结构明确、反馈周期短，适合验证主视觉和布局自适应能力。"),
+          page("exec-s4p2", "用版本树沉淀组织表达资产", "把每次结构修改记录为可回溯节点，逐步形成团队级汇报模板库。"),
+        ],
+      },
+    ],
+  },
+  {
+    id: "research-method",
+    match: ["研究", "方法论", "实验", "学术", "答辩", "分栏", "结论"],
+    sections: [
+      {
+        id: "s1",
+        title: "研究背景",
+        sub: "生成式 AI 与演示文稿创作",
+        pages: [
+          page("res-s1p1", "从页面生成到结构协同", "研究关注 AI 如何在演示文稿制作中保持用户意图和叙事连贯。"),
+          page("res-s1p2", "现有工具缺少中间层", "直接生成整套 PPT 难以解释和调整，逐页编辑又无法发挥 AI 的规划能力。"),
+        ],
+      },
+      {
+        id: "s2",
+        title: "方法设计",
+        sub: "故事线驱动的交互框架",
+        pages: [
+          page("res-s2p1", "结构层作为核心操作对象", "用户先编辑章节、顺序和页面数量，再让系统同步生成页面草稿。"),
+          page("res-s2p2", "版本树记录意图演化", "每次结构变化都保留快照，支持回退、分叉和对比不同叙事路径。"),
+        ],
+      },
+      {
+        id: "s3",
+        title: "实验观察",
+        sub: "可控性与效率评估",
+        pages: [
+          page("res-s3p1", "参与者更愿意先改结构", "相比直接修改单页，结构层操作更容易表达“想讲什么”和“先后顺序”。"),
+          page("res-s3p2", "AI 精修适合局部闭环", "在用户框选区域后，系统能更准确地给出标题、正文或视觉建议。"),
+        ],
+      },
+      {
+        id: "s4",
+        title: "结论与展望",
+        sub: "向自适应布局扩展",
+        pages: [
+          page("res-s4p1", "故事线是 AI Native PPT 的稳定入口", "它让生成、编辑与版本管理围绕同一个结构对象运行。"),
+          page("res-s4p2", "后续关注布局自动重排", "当章节和页面内容变化时，版式需要自动保持视觉秩序与阅读节奏。"),
+        ],
+      },
+    ],
+  },
+];
+
+const normalize = (text) => String(text || "").toLowerCase();
+const tokenize = (text) => normalize(text).split(/[\s,，。；;、：:·/|]+/u).filter(Boolean);
+const visualTerms = (item) => [...item.tags, ...tokenize(`${item.title} ${item.style}`)].filter((term) => term.length > 1);
+
+function visualScore(item, intent) {
+  const text = normalize(intent);
+  const tokens = tokenize(intent);
+  if (!text && !tokens.length) return 0;
+
+  return visualTerms(item).reduce((sum, term) => {
+    const key = normalize(term);
+    if (!key) return sum;
+    const direct = text.includes(key) ? 4 : 0;
+    const partial = tokens.some((token) => key.includes(token) || token.includes(key)) ? 2 : 0;
+    return sum + direct + partial;
+  }, 0);
+}
 
 export function rankVisualCandidates(candidates, intent) {
-  const tokens = tokenize(intent);
-  if (!tokens.length) return [...candidates];
+  return candidates
+    .map((item, index) => ({ item, index, score: visualScore(item, intent) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(({ item }) => item);
+}
 
-  return [...candidates].sort((a, b) => {
-    const score = (item) => {
-      const haystack = `${item.title} ${item.style} ${item.tags.join(" ")}`.toLowerCase();
-      return tokens.reduce((sum, token) => sum + (haystack.includes(token) ? 3 : 0), 0)
-        + item.tags.reduce((sum, tag) => sum + (tokens.some((token) => tag.toLowerCase().includes(token)) ? 2 : 0), 0);
-    };
-    return score(b) - score(a);
-  });
+export function visualRecommendationReason(visual, intent) {
+  if (!visual) return "选择一个模板后查看推荐理由。";
+  const text = normalize(intent);
+  const matched = visual.tags.filter((tag) => text.includes(normalize(tag))).slice(0, 3);
+  const terms = matched.length ? matched : visual.tags.slice(0, 3);
+  return `匹配：${terms.join("、")}。适合把「${visual.title}」作为初稿的视觉基调。`;
+}
+
+export function selectMockDraftForVisual(visual) {
+  if (!visual) return cloneSections(INIT);
+  const haystack = normalize(`${visual.title} ${visual.style} ${(visual.tags || []).join(" ")}`);
+  const ranked = MOCK_STORYLINE_DRAFTS
+    .map((draft, index) => ({
+      draft,
+      index,
+      score: draft.match.reduce((sum, term) => sum + (haystack.includes(normalize(term)) ? 1 : 0), 0),
+    }))
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+
+  return cloneSections(ranked[0]?.draft.sections || INIT);
 }
 
 export function applyVisualToSections(visual, sections = INIT) {
-  const next = cloneSections(sections);
+  const next = visual ? selectMockDraftForVisual(visual) : cloneSections(sections);
   const base = palettes.find((p) => p.c === visual?.c) || palettes[0];
   const allPalettes = [
     { c: visual?.c || base.c, bg: visual?.bg || base.bg, bd: visual?.bd || base.bd },

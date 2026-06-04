@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowLeft, Check, Image, Minus, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Image, Minus, Plus, Search, Sparkles, Star } from "lucide-react";
 import { ChatPanel } from "./components/ChatPanel";
 import { Intro } from "./components/Intro";
 import { StorylinePanel } from "./components/StorylinePanel";
@@ -11,6 +11,7 @@ import {
   VISUAL_INTENT_SUMMARY,
   applyVisualToSections,
   rankVisualCandidates,
+  visualRecommendationReason,
 } from "./data/mock";
 import { useStoryflow } from "./hooks/useStoryflow";
 
@@ -206,6 +207,12 @@ const S = {
     gap: 10,
     alignContent: "space-between",
   },
+  visualBody: {
+    flex: 1,
+    minHeight: 0,
+    display: "grid",
+    gridTemplateColumns: "minmax(0,1fr) 260px",
+  },
   visualMode: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr 1fr",
@@ -224,6 +231,20 @@ const S = {
     whiteSpace: "nowrap",
   },
   generateBtn: {
+    height: 34,
+    border: 0,
+    borderRadius: 7,
+    background: "#7F77DD",
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: 650,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    cursor: "pointer",
+  },
+  smartSearchBtn: {
     height: 34,
     border: 0,
     borderRadius: 7,
@@ -284,6 +305,41 @@ const S = {
     overflow: "hidden",
     border: "1px solid var(--color-border-tertiary)",
     background: "var(--color-background-secondary)",
+  },
+  visualDetail: {
+    minHeight: 0,
+    borderLeft: "0.5px solid var(--color-border-tertiary)",
+    background: "var(--color-background-primary)",
+    padding: 14,
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
+  detailHero: {
+    borderRadius: 8,
+    overflow: "hidden",
+    border: "1px solid var(--color-border-tertiary)",
+    background: "var(--color-background-secondary)",
+    aspectRatio: "16/10",
+  },
+  detailActions: {
+    display: "grid",
+    gridTemplateColumns: "34px 1fr",
+    gap: 8,
+    marginTop: "auto",
+  },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 7,
+    border: "1px solid var(--color-border-tertiary)",
+    background: "var(--color-background-primary)",
+    color: "var(--color-text-secondary)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
   },
   visualTags: {
     display: "flex",
@@ -592,10 +648,16 @@ const S = {
 function VisualSelectionPage({ onGenerate }) {
   const [intent, setIntent] = useState(VISUAL_INTENT_SUMMARY);
   const [mode, setMode] = useState("all");
-  const rankedCanva = rankVisualCandidates(VISUAL_CANVA_TEMPLATES, intent);
-  const rankedAi = rankVisualCandidates(VISUAL_AI_GENERATIONS, intent);
-  const [selectedId, setSelectedId] = useState(rankedCanva[0]?.id);
-  const selected = [...rankedCanva, ...rankedAi].find((item) => item.id === selectedId) || rankedCanva[0] || rankedAi[0];
+  const [searchedIntent, setSearchedIntent] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+  const [starred, setStarred] = useState({});
+  const searched = Boolean(searchedIntent);
+  const rankedCanva = searched ? rankVisualCandidates(VISUAL_CANVA_TEMPLATES, searchedIntent) : VISUAL_CANVA_TEMPLATES;
+  const rankedAi = searched ? rankVisualCandidates(VISUAL_AI_GENERATIONS, searchedIntent) : VISUAL_AI_GENERATIONS;
+  const selected = [...rankedCanva, ...rankedAi].find((item) => item.id === selectedId) || null;
+  const bestIds = searched ? new Set([rankedCanva[0]?.id, rankedAi[0]?.id].filter(Boolean)) : new Set();
+
+  const runSearch = () => setSearchedIntent(intent.trim() || VISUAL_INTENT_SUMMARY);
 
   return (
     <div style={S.visualRoot}>
@@ -631,33 +693,98 @@ function VisualSelectionPage({ onGenerate }) {
               );
             })}
           </div>
-          <button type="button" onClick={() => selected && onGenerate(selected)} style={S.generateBtn}>
-            <Sparkles size={14} /> 生成故事线与 PPT
+          <button type="button" onClick={runSearch} style={S.smartSearchBtn}>
+            <Search size={14} /> 智能找模板
           </button>
         </div>
       </div>
-      <div style={S.galleryScroll}>
-        {mode === "all" ? (
-          <div style={S.sourceColumns}>
-            <VisualSourceColumn title="Canva 模板" items={rankedCanva} selectedId={selectedId} onSelect={setSelectedId} />
-            <VisualSourceColumn title="AI 生成" items={rankedAi} selectedId={selectedId} onSelect={setSelectedId} />
-          </div>
-        ) : (
-          <div>
-            <div style={S.sourceHead}>{mode === "canva" ? "Canva 模板" : "AI 生成"}</div>
-            <div style={S.visualGridFour}>
-              {(mode === "canva" ? rankedCanva : rankedAi).map((item) => (
-                <VisualCandidateCard key={item.id} item={item} active={item.id === selectedId} onSelect={() => setSelectedId(item.id)} />
-              ))}
+      <div style={S.visualBody}>
+        <div style={S.galleryScroll}>
+          {mode === "all" ? (
+            <div style={S.sourceColumns}>
+              <VisualSourceColumn title="Canva 模板" items={rankedCanva} selectedId={selectedId} bestIds={bestIds} onSelect={setSelectedId} />
+              <VisualSourceColumn title="AI 生成" items={rankedAi} selectedId={selectedId} bestIds={bestIds} onSelect={setSelectedId} />
             </div>
-          </div>
-        )}
+          ) : (
+            <div>
+              <div style={S.sourceHead}>{mode === "canva" ? "Canva 模板" : "AI 生成"}</div>
+              <div style={S.visualGridFour}>
+                {(mode === "canva" ? rankedCanva : rankedAi).map((item) => (
+                  <VisualCandidateCard key={item.id} item={item} active={item.id === selectedId} best={bestIds.has(item.id)} onSelect={() => setSelectedId(item.id)} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <VisualDetailPanel
+          visual={selected}
+          reason={visualRecommendationReason(selected, searchedIntent || intent)}
+          starred={selected ? Boolean(starred[selected.id]) : false}
+          onToggleStar={() => selected && setStarred((prev) => ({ ...prev, [selected.id]: !prev[selected.id] }))}
+          onApply={() => selected && onGenerate(selected)}
+        />
       </div>
     </div>
   );
 }
 
-function VisualSourceColumn({ title, items, selectedId, onSelect }) {
+function VisualDetailPanel({ visual, reason, starred, onToggleStar, onApply }) {
+  if (!visual) {
+    return (
+      <aside style={S.visualDetail}>
+        <div style={{ fontSize: 12, fontWeight: 650, color: "var(--color-text-primary)" }}>模板详情</div>
+        <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", lineHeight: 1.65 }}>
+          点击任意候选查看标题、风格、标签和推荐理由。确认后用右箭头生成结构编辑初稿。
+        </div>
+      </aside>
+    );
+  }
+
+  return (
+    <aside style={S.visualDetail}>
+      <div style={S.detailHero}>
+        <img src={visual.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      </div>
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 4, background: visual.c }} />
+          <span style={{ fontSize: 10, color: "var(--color-text-tertiary)" }}>{visual.source === "canva" ? "Canva 模板" : "AI 生成"}</span>
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)", lineHeight: 1.25 }}>{visual.title}</div>
+        <div style={{ fontSize: 11, color: "var(--color-text-secondary)", lineHeight: 1.6, marginTop: 7 }}>{visual.style}</div>
+      </div>
+      <div style={S.visualTags}>
+        {visual.tags.map((tag) => (
+          <span key={tag} style={{ ...S.visualTag, color: visual.c, background: visual.bg }}>{tag}</span>
+        ))}
+      </div>
+      <div style={{ borderTop: "0.5px solid var(--color-border-tertiary)", paddingTop: 10 }}>
+        <div style={{ fontSize: 10, fontWeight: 650, color: "var(--color-text-tertiary)", marginBottom: 5 }}>推荐理由</div>
+        <div style={{ fontSize: 11, color: "var(--color-text-secondary)", lineHeight: 1.65 }}>{reason}</div>
+      </div>
+      <div style={S.detailActions}>
+        <button
+          type="button"
+          onClick={onToggleStar}
+          aria-label={starred ? "取消星标" : "星标模板"}
+          style={{
+            ...S.iconBtn,
+            borderColor: starred ? visual.bd : "var(--color-border-tertiary)",
+            background: starred ? visual.bg : "var(--color-background-primary)",
+            color: starred ? visual.c : "var(--color-text-secondary)",
+          }}
+        >
+          <Star size={15} fill={starred ? "currentColor" : "none"} />
+        </button>
+        <button type="button" onClick={onApply} style={S.smartSearchBtn}>
+          生成故事线与 PPT <ArrowRight size={14} />
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function VisualSourceColumn({ title, items, selectedId, bestIds, onSelect }) {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={S.sourceHead}>
@@ -666,14 +793,14 @@ function VisualSourceColumn({ title, items, selectedId, onSelect }) {
       </div>
       <div style={S.visualGridTwo}>
         {items.map((item) => (
-          <VisualCandidateCard key={item.id} item={item} active={item.id === selectedId} onSelect={() => onSelect(item.id)} />
+          <VisualCandidateCard key={item.id} item={item} active={item.id === selectedId} best={bestIds.has(item.id)} onSelect={() => onSelect(item.id)} />
         ))}
       </div>
     </div>
   );
 }
 
-function VisualCandidateCard({ item, active, onSelect }) {
+function VisualCandidateCard({ item, active, best, onSelect }) {
   return (
     <button
       type="button"
@@ -689,7 +816,14 @@ function VisualCandidateCard({ item, active, onSelect }) {
         <img src={item.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
       </div>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 650, color: active ? item.c : "var(--color-text-primary)", lineHeight: 1.3 }}>{item.title}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+          <div style={{ fontSize: 12, fontWeight: 650, color: active ? item.c : "var(--color-text-primary)", lineHeight: 1.3, flex: 1 }}>{item.title}</div>
+          {best && (
+            <span style={{ borderRadius: 5, padding: "1px 5px", background: item.bg, color: item.c, fontSize: 9, whiteSpace: "nowrap" }}>
+              最适配
+            </span>
+          )}
+        </div>
         <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", lineHeight: 1.45, marginTop: 2 }}>{item.style}</div>
       </div>
       <div style={S.visualTags}>
