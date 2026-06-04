@@ -928,6 +928,8 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
   const displayTitle = pageText.title ?? curPage?.h ?? "当前页标题";
   const displayBody = pageText.body ?? curPage?.b ?? "当前页正文";
   const activeMaterial = REFINE_MATERIAL_DEFS.find((item) => item.id === activeId);
+  const proposalRegion = materialRegion(activeId);
+  const proposals = buildRefineProposals(editNote, proposalRegion, selPage, { ...curPage, h: displayTitle, b: displayBody }, curSec);
 
   const setZoomClamped = (next) => setZoom((prev) => Math.min(1.8, Math.max(0.6, typeof next === "function" ? next(prev) : next)));
   const updateText = (kind, value) => setTextEdits((prev) => ({ ...prev, [pageKey]: { ...prev[pageKey], [kind]: value } }));
@@ -1075,7 +1077,10 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
             </span>
             <textarea
               value={editNote}
-              onChange={(e) => setEditNote(e.target.value)}
+              onChange={(e) => {
+                setEditNote(e.target.value);
+                setRightTab("proposals");
+              }}
               placeholder="记录本页精修要求。当前版本只演示素材直接操作：拖动素材、编辑文字、替换图片、缩放文本框或图片。"
               style={{ ...S.intentInput, minHeight: 76 }}
             />
@@ -1086,10 +1091,11 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
       {rightOpen && (
         <div style={S.agentPanel}>
           <div style={S.agentHead}>
-            <div style={S.segmented}>
+            <div style={{ ...S.segmented, gridTemplateColumns: "1fr 1fr 1fr" }}>
               {[
                 ["versions", "版本树"],
                 ["materials", "素材操作"],
+                ["proposals", "AI方案"],
               ].map(([id, label]) => {
                 const active = rightTab === id;
                 return (
@@ -1113,6 +1119,13 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
           <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
             {rightTab === "versions" ? (
               <VersionTree vers={vers} curV={curV} restore={restore} />
+            ) : rightTab === "proposals" ? (
+              <ProposalPreviewPanel
+                intent={editNote}
+                proposals={proposals}
+                curSec={curSec}
+                activeMaterial={activeMaterial}
+              />
             ) : (
               <div style={{ height: "100%", padding: 12, display: "grid", gap: 12, alignContent: "start", overflowY: "auto" }}>
                 {activeMaterial?.kind === "image" ? (
@@ -1283,6 +1296,54 @@ function DecorRefinePanel({ layout, onResize }) {
   );
 }
 
+function ProposalPreviewPanel({ intent, proposals, curSec, activeMaterial }) {
+  return (
+    <div style={{ height: "100%", padding: 12, display: "grid", gap: 10, overflowY: "auto" }}>
+      {!intent.trim() ? (
+        <div style={{ border: "1px dashed var(--color-border-tertiary)", borderRadius: 8, padding: 14, color: "var(--color-text-tertiary)", fontSize: 11, lineHeight: 1.7, background: "var(--color-background-secondary)" }}>
+          在底部输入精修要求后，这里会像 main 分支一样实时展示 3 张 mock AI 方案图。当前焦点：{activeMaterial?.label || "当前页"}。
+        </div>
+      ) : (
+        proposals.map((proposal) => (
+          <RefineProposalPreviewCard
+            key={proposal.index}
+            proposal={proposal}
+            curSec={curSec}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+function RefineProposalPreviewCard({ proposal, curSec }) {
+  return (
+    <div className="anim-fade-up" style={{ animationDelay: `${(proposal.index - 1) * 80}ms`, ...S.proposalCard }}>
+      <div style={{ ...S.proposalImage, borderColor: proposal.border, background: proposal.bg }}>
+        <div>
+          <div style={{ width: 34, height: 4, borderRadius: 2, background: proposal.accent, marginBottom: 8 }} />
+          <div style={{ fontSize: 13, fontWeight: 650, color: "var(--color-text-primary)", lineHeight: 1.25 }}>{proposal.previewTitle}</div>
+          <div style={{ fontSize: 9, color: "var(--color-text-tertiary)", marginTop: 4 }}>{curSec?.title} · 第 {proposal.pageNo} 页</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: proposal.kind === "visual" ? "1fr 1fr" : "1fr", gap: 8, alignItems: "end" }}>
+          <div style={{ fontSize: 10, lineHeight: 1.5, color: "var(--color-text-secondary)" }}>{proposal.previewBody}</div>
+          {proposal.kind === "visual" && (
+            <div style={{ display: "grid", gap: 5 }}>
+              {[76, 52, 88].map((width, i) => (
+                <span key={width} style={{ height: 7, width: `${width}%`, borderRadius: 4, background: [curSec?.c, "#D4537E", "#378ADD"][i] }} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 650 }}>方案 {proposal.index} · {proposal.name}</div>
+        <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", lineHeight: 1.5 }}>{proposal.summary}</div>
+      </div>
+    </div>
+  );
+}
+
 function materialLabel(id) {
   return REFINE_MATERIAL_DEFS.find((item) => item.id === id)?.label || id;
 }
@@ -1365,6 +1426,77 @@ function textMaterialStyle(layout, extra = {}) {
     overflowWrap: "anywhere",
     ...extra,
   };
+}
+
+function buildRefineProposals(intent, region, selPage, curPage, curSec) {
+  const text = intent.trim();
+  if (!text || !curPage) return [];
+
+  const target = regionLabel(region);
+  const baseTitle = curPage.h || "当前页";
+  const baseBody = curPage.b || "";
+  const accent = curSec?.c || "#7F77DD";
+  const bg = curSec?.bg || "#EEEDFE";
+  const border = curSec?.bd || "#CECBF6";
+  const shortIntent = text.length > 20 ? `${text.slice(0, 20)}...` : text;
+
+  return [
+    {
+      index: 1,
+      kind: "title",
+      name: "结论强化",
+      pageNo: selPage + 1,
+      accent,
+      bg: "#FAFAFF",
+      border,
+      previewTitle: refineTitle(baseTitle, text),
+      previewBody: baseBody,
+      summary: `围绕「${shortIntent}」强化${target}，让标题更像可直接汇报的判断。`,
+    },
+    {
+      index: 2,
+      kind: "body",
+      name: "正文压缩",
+      pageNo: selPage + 1,
+      accent: "#1D9E75",
+      bg: "var(--color-background-primary)",
+      border: "#9FE1CB",
+      previewTitle: baseTitle,
+      previewBody: `按「${shortIntent}」重写：先给结论，再保留关键因果与数据锚点。`,
+      summary: `保留原页信息骨架，压缩${target}文字并突出汇报口径。`,
+    },
+    {
+      index: 3,
+      kind: "visual",
+      name: "视觉重绘",
+      pageNo: selPage + 1,
+      accent: "#378ADD",
+      bg,
+      border: "#B5D4F4",
+      previewTitle: baseTitle,
+      previewBody: "将局部素材组织成对比卡片，强化差异、趋势与结论标注。",
+      summary: `把${target}转成图片式数据视觉，适合右侧素材区或整页强调。`,
+    },
+  ];
+}
+
+function refineTitle(title, intent) {
+  const cleanIntent = intent.replace(/[。！？.!?]+$/u, "");
+  if (title.includes("：")) return `${title} · ${cleanIntent}`;
+  return `${title}：${cleanIntent}`;
+}
+
+function materialRegion(id) {
+  if (id === "title" || id === "section") return "title";
+  if (id === "visual" || id === "badge") return "visual";
+  return "body";
+}
+
+function regionLabel(region) {
+  if (region === "title") return "标题区域";
+  if (region === "body") return "正文区域";
+  if (region === "visual") return "图片/图表区域";
+  return "当前页";
 }
 
 function ThinkingBar({ visible }) {
