@@ -105,7 +105,7 @@ function App() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, boxSizing: "border-box" }}>
       <div ref={shellRef} style={S.shell}>
         {/* SLOT:toolbar */}
         <Toolbar
@@ -125,7 +125,7 @@ function App() {
           />
         )}
         {view === "refine" ? (
-          <div key="refine" className="anim-fade-up">
+          <div key="refine" className="anim-fade-up" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <AIRefinePage
               secs={story.secs}
               sel={story.sel}
@@ -140,7 +140,7 @@ function App() {
             />
           </div>
         ) : view === "visual" ? (
-          <div key="visual" className="anim-fade-up">
+          <div key="visual" className="anim-fade-up" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <VisualSelectionPage
               onGenerate={(visual) => {
                 const nextSecs = applyVisualToSections(visual, story.secs);
@@ -213,6 +213,10 @@ function App() {
 const S = {
   shell: {
     width: "min(100%, 980px)",
+    height: "calc(100vh - 48px)",
+    minHeight: 480,
+    display: "flex",
+    flexDirection: "column",
     borderRadius: 12,
     overflow: "hidden",
     border: "0.5px solid var(--color-border-tertiary)",
@@ -224,11 +228,12 @@ const S = {
   },
   root: {
     display: "grid",
-    height: 580,
+    flex: 1,
+    minHeight: 0,
     background: "var(--color-background-primary)",
   },
   visualRoot: {
-    height: 640,
+    flex: 1,
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
@@ -383,8 +388,9 @@ const S = {
     overflow: "hidden",
   },
   refineRoot: {
-    height: 640,
+    flex: 1,
     display: "grid",
+    minHeight: 0,
     background: "var(--color-background-tertiary)",
   },
   refineWorkspace: {
