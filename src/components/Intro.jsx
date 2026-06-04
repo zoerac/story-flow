@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { ArrowRight, Check, GitFork, Sparkles } from "lucide-react";
+import { ArrowRight, Check, FileText, GitFork, Sparkles } from "lucide-react";
 import { INTRO_EXAMPLE, INTRO_STEPS, buildSummary } from "../data/intro";
+import { DocModal } from "./DocModal";
 
 export function Intro({ onDone }) {
   const [phase, setPhase] = useState("need"); // need | audience | tone | summary
   const [need, setNeed] = useState("");
   const [answers, setAnswers] = useState({});
   const [bubbles, setBubbles] = useState([]);
+  const [showDoc, setShowDoc] = useState(false);
 
   const pushBubble = (from, text) => setBubbles((prev) => [...prev, { from, text }]);
 
@@ -85,8 +87,22 @@ export function Intro({ onDone }) {
         >
           <GitFork size={14} style={{ color: "#7F77DD" }} />
           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-primary)" }}>StoryFlow</span>
-          <span style={{ fontSize: 10, color: "var(--color-text-tertiary)" }}>意图对齐</span>
+          <span style={{ fontSize: 10, color: "var(--color-text-tertiary)", flex: 1 }}>意图对齐</span>
+          <button
+            type="button"
+            onClick={() => setShowDoc(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: 4, fontSize: 10,
+              color: "var(--color-text-tertiary)", background: "none", border: "none",
+              cursor: "pointer", padding: "2px 6px", borderRadius: 5,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-background-secondary)"; e.currentTarget.style.color = "var(--color-text-secondary)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--color-text-tertiary)"; }}
+          >
+            <FileText size={11} /> 产品文档
+          </button>
         </div>
+        {showDoc && <DocModal onClose={() => setShowDoc(false)} />}
 
         {/* Chat area */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
