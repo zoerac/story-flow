@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { ArrowLeft, Check, Image, Minus, Plus, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, Image, Minus, Plus, Sparkles, Type } from "lucide-react";
 import { ChatPanel } from "./components/ChatPanel";
 import { Intro } from "./components/Intro";
 import { StorylinePanel } from "./components/StorylinePanel";
@@ -11,6 +11,7 @@ import {
   VISUAL_INTENT_SUMMARY,
   applyVisualToSections,
   rankVisualCandidates,
+  REFINE_IMAGE_CANDIDATES,
 } from "./data/mock";
 import { useStoryflow } from "./hooks/useStoryflow";
 
@@ -105,7 +106,6 @@ function App() {
           <div key="refine" className="anim-fade-up" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <AIRefinePage
               secs={story.secs}
-              setSecs={story.setSecs}
               sel={story.sel}
               selPage={story.selPage}
               rightOpen={layout.rightOpen}
@@ -115,7 +115,6 @@ function App() {
               saveVersion={story.saveVersion}
               toggleSaved={story.toggleSaved}
               deleteVersion={story.deleteVersion}
-              addMsg={story.addMsg}
               onBack={() => handleStageJump("structure")}
             />
           </div>
@@ -394,9 +393,9 @@ const S = {
     minWidth: 0,
     minHeight: 0,
     display: "grid",
-    gridTemplateRows: "minmax(0,1fr) auto",
-    gap: 10,
-    padding: 12,
+    gridTemplateRows: "minmax(0,1fr) minmax(92px, auto)",
+    gap: 8,
+    padding: 10,
     overflow: "hidden",
   },
   refineSection: {
@@ -534,10 +533,10 @@ const S = {
     flex: 1,
     minHeight: 0,
     overflow: "auto",
-    padding: 26,
+    padding: 14,
     display: "flex",
     justifyContent: "center",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
   bigSlide: {
     width: 720,
@@ -910,81 +909,166 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
   );
 }
 
-function AIRefinePage({ secs, setSecs, sel, selPage, rightOpen, vers, curV, restore, saveVersion, toggleSaved, deleteVersion, addMsg, onBack }) {
+function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, saveVersion, toggleSaved, deleteVersion, onBack }) {
   const [zoom, setZoom] = useState(1);
-  const [dragStart, setDragStart] = useState(null);
+  const [activeId, setActiveId] = useState("title");
+  const [rightTab, setRightTab] = useState("materials");
+  const [panelW, setPanelW] = useState(240);
+  const [editNote, setEditNote] = useState("");
   const [selRect, setSelRect] = useState(null);
-  const [intent, setIntent] = useState("");
-  const [rightTab, setRightTab] = useState("proposals");
-  const [visualRevision, setVisualRevision] = useState(0);
+  const [gesture, setGesture] = useState(null);
+  const [imageChoice, setImageChoice] = useState(REFINE_IMAGE_CANDIDATES[0]);
+  const [textEdits, setTextEdits] = useState({});
+  const [layouts, setLayouts] = useState(() => cloneRefineLayouts());
   const canvasRef = useRef(null);
+  const viewportRef = useRef(null);
   const curSec = secs[sel];
   const curPage = curSec?.pages[selPage] || curSec?.pages[0];
-  const region = classifyRegion(selRect);
-  const selectedMaterialCount = countSelectedMaterials(selRect);
-  const suggestedIntent = buildSuggestedIntent(region, selectedMaterialCount);
-  const proposals = buildRefineProposals(intent, region, selPage, curPage, curSec);
+  const pageKey = curPage?.id || "page";
+  const pageText = textEdits[pageKey] || {};
+  const displayTitle = pageText.title ?? curPage?.h ?? "当前页标题";
+  const displayBody = pageText.body ?? curPage?.b ?? "当前页正文";
+  const activeMaterial = REFINE_MATERIAL_DEFS.find((item) => item.id === activeId);
+  const selectedMaterialCount = countSelectedMaterials(selRect, layouts);
+  const proposalRegion = selRect ? classifyRegion(selRect) : materialRegion(activeId);
+  const proposals = buildRefineProposals(editNote, proposalRegion, selPage, { ...curPage, h: displayTitle, b: displayBody }, curSec);
 
-  const setZoomClamped = (next) => setZoom((prev) => Math.min(1.8, Math.max(0.6, typeof next === "function" ? next(prev) : next)));
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return undefined;
+
+    const fitToViewport = () => {
+      const rect = viewport.getBoundingClientRect();
+      const nextZoom = Math.min((rect.width - 8) / SLIDE_W, (rect.height - 8) / SLIDE_H);
+      if (Number.isFinite(nextZoom) && nextZoom > 0) {
+        setZoom(Math.min(1.8, Math.max(0.35, nextZoom)));
+      }
+    };
+
+    fitToViewport();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", fitToViewport);
+      return () => window.removeEventListener("resize", fitToViewport);
+    }
+
+    const observer = new ResizeObserver(fitToViewport);
+    observer.observe(viewport);
+    window.addEventListener("resize", fitToViewport);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", fitToViewport);
+    };
+  }, [panelW, rightOpen]);
+
+  const setZoomClamped = (next) => setZoom((prev) => Math.min(1.8, Math.max(0.35, typeof next === "function" ? next(prev) : next)));
+  const updateText = (kind, value) => setTextEdits((prev) => ({ ...prev, [pageKey]: { ...prev[pageKey], [kind]: value } }));
+  const updateLayout = (id, patch) => setLayouts((prev) => ({ ...prev, [id]: clampLayout({ ...prev[id], ...patch }) }));
 
   const pointFromEvent = (e) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return null;
     return {
-      x: Math.max(0, Math.min((e.clientX - rect.left) / zoom, 720)),
-      y: Math.max(0, Math.min((e.clientY - rect.top) / zoom, 450)),
+      x: Math.max(0, Math.min((e.clientX - rect.left) / zoom, SLIDE_W)),
+      y: Math.max(0, Math.min((e.clientY - rect.top) / zoom, SLIDE_H)),
     };
   };
 
-  const onMouseDown = (e) => {
+  const startMaterialMove = (e, id) => {
+    e.stopPropagation();
+    const material = REFINE_MATERIAL_DEFS.find((item) => item.id === id);
+    setActiveId(id);
+    setSelRect(null);
+    setRightTab("materials");
+    if (!material) return;
     const point = pointFromEvent(e);
     if (!point) return;
-    setDragStart(point);
+    setGesture({ type: "move", id, start: point, origin: layouts[id] });
+  };
+
+  const startSelection = (e) => {
+    if (e.target.closest("[data-material-id]")) return;
+    const point = pointFromEvent(e);
+    if (!point) return;
+    setActiveId(null);
+    setRightTab("proposals");
+    setGesture({ type: "select", start: point });
     setSelRect({ x: point.x, y: point.y, w: 0, h: 0 });
   };
 
-  const onMouseMove = (e) => {
-    if (!dragStart) return;
+  const startResize = (e, id) => {
+    e.stopPropagation();
     const point = pointFromEvent(e);
     if (!point) return;
-    setSelRect({
-      x: Math.min(dragStart.x, point.x),
-      y: Math.min(dragStart.y, point.y),
-      w: Math.abs(point.x - dragStart.x),
-      h: Math.abs(point.y - dragStart.y),
-    });
+    setActiveId(id);
+    setGesture({ type: "resize", id, start: point, origin: layouts[id] });
+  };
+
+  const onMouseMove = (e) => {
+    if (!gesture) return;
+    const point = pointFromEvent(e);
+    if (!point) return;
+    if (gesture.type === "select") {
+      setSelRect({
+        x: Math.min(gesture.start.x, point.x),
+        y: Math.min(gesture.start.y, point.y),
+        w: Math.abs(point.x - gesture.start.x),
+        h: Math.abs(point.y - gesture.start.y),
+      });
+      return;
+    }
+    const dx = point.x - gesture.start.x;
+    const dy = point.y - gesture.start.y;
+    if (gesture.type === "move") {
+      updateLayout(gesture.id, { x: gesture.origin.x + dx, y: gesture.origin.y + dy });
+    } else if (gesture.type === "resize") {
+      const nextPatch = { w: gesture.origin.w + dx, h: gesture.origin.h + dy };
+      if (isTextMaterial(gesture.id)) {
+        const scale = Math.max(0.7, Math.min(1.8, nextPatch.h / Math.max(1, gesture.origin.h)));
+        nextPatch.fontSize = Math.round((gesture.origin.fontSize || defaultFontSize(gesture.id)) * scale);
+      }
+      updateLayout(gesture.id, nextPatch);
+    }
   };
 
   const onMouseUp = () => {
-    if (selRect && selRect.w * selRect.h < 500) setSelRect(null);
-    setDragStart(null);
+    if (gesture?.type === "select") {
+      setSelRect((rect) => (!rect || rect.w * rect.h < 500 ? null : rect));
+    }
+    setGesture(null);
   };
 
-  const approveProposal = (proposal) => {
-    if (!proposal || !curSec || !curPage) return;
-    const nextSecs = structuredClone(secs);
-    const nextPage = nextSecs[sel].pages[selPage];
-
-    if (proposal.kind === "title") {
-      nextPage.h = proposal.nextTitle;
-    } else if (proposal.kind === "body") {
-      nextPage.b = proposal.nextBody;
-    } else {
-      nextPage.b = `${curPage.b}｜${proposal.note}`;
-      setVisualRevision((v) => v + 1);
-    }
-
-    setSecs(nextSecs);
-    addMsg("sys", `AI精修方案${proposal.index}已应用到「${curPage.h}」，可在右侧版本树点「保存」记录为版本。`);
-    setSelRect(null);
-    setRightTab("versions");
+  const materialCanResize = activeId && layouts[activeId];
+  const resizeTextMaterial = (delta) => {
+    if (!materialCanResize) return;
+    const current = layouts[activeId];
+    const nextH = current.h + delta.h;
+    const scale = Math.max(0.7, Math.min(1.8, nextH / Math.max(1, current.h)));
+    updateLayout(activeId, {
+      w: current.w + delta.w,
+      h: nextH,
+      fontSize: Math.round((current.fontSize || defaultFontSize(activeId)) * scale),
+    });
+  };
+  const startPanelResize = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = panelW;
+    const onMove = (moveEvent) => {
+      setPanelW(Math.min(360, Math.max(200, startW - (moveEvent.clientX - startX))));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
   };
 
   return (
     <div
       style={{
         ...S.refineRoot,
-        gridTemplateColumns: `minmax(0,1fr) ${rightOpen ? "276px" : "0px"}`,
+        gridTemplateColumns: `minmax(0,1fr) ${rightOpen ? `4px ${panelW}px` : "0px 0px"}`,
       }}
     >
       <div style={S.refineWorkspace}>
@@ -1004,11 +1088,11 @@ function AIRefinePage({ secs, setSecs, sel, selPage, rightOpen, vers, curV, rest
               </button>
             </div>
           </div>
-          <div style={S.canvasViewport}>
-            <div style={{ width: 720 * zoom, height: 450 * zoom, position: "relative", flexShrink: 0 }}>
+          <div ref={viewportRef} style={S.canvasViewport}>
+            <div style={{ width: SLIDE_W * zoom, height: SLIDE_H * zoom, position: "relative", flexShrink: 0 }}>
               <div
                 ref={canvasRef}
-                onMouseDown={onMouseDown}
+                onMouseDown={startSelection}
                 onMouseMove={onMouseMove}
                 onMouseUp={onMouseUp}
                 style={{
@@ -1016,29 +1100,40 @@ function AIRefinePage({ secs, setSecs, sel, selPage, rightOpen, vers, curV, rest
                   transform: `scale(${zoom})`,
                   transformOrigin: "top left",
                   borderColor: curSec?.bd,
+                  cursor: gesture?.type === "select" ? "crosshair" : "default",
+                  padding: 0,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24 }}>
-                  <div>
-                    <div style={{ width: 64, height: 6, borderRadius: 3, background: curSec?.c, marginBottom: 18 }} />
-                    <div style={{ fontSize: 30, fontWeight: 650, lineHeight: 1.18, maxWidth: 430 }}>{curPage?.h}</div>
-                    <div style={{ fontSize: 14, color: "var(--color-text-tertiary)", marginTop: 10 }}>{curSec?.title} · {curSec?.sub}</div>
-                  </div>
-                  <div style={{ ...S.visualBadge, background: curSec?.bg, borderColor: curSec?.bd, color: curSec?.c }}>
+                <span style={{ position: "absolute", left: 44, top: 42, width: 64, height: 6, borderRadius: 3, background: curSec?.c }} />
+                <RefineMaterialBox id="title" active={activeId === "title"} layout={layouts.title} onMouseDown={startMaterialMove}>
+                  <div style={textMaterialStyle(layouts.title, { fontWeight: 650, lineHeight: 1.18, color: "var(--color-text-primary)" })}>{displayTitle}</div>
+                  {activeId === "title" && <button type="button" aria-label="缩放标题文本框" onMouseDown={(e) => startResize(e, "title")} style={resizeHandleStyle} />}
+                </RefineMaterialBox>
+                <RefineMaterialBox id="section" active={activeId === "section"} layout={layouts.section} onMouseDown={startMaterialMove}>
+                  <div style={textMaterialStyle(layouts.section, { color: "var(--color-text-tertiary)" })}>{curSec?.title} · {curSec?.sub}</div>
+                  {activeId === "section" && <button type="button" aria-label="缩放章节说明文本框" onMouseDown={(e) => startResize(e, "section")} style={resizeHandleStyle} />}
+                </RefineMaterialBox>
+                <RefineMaterialBox id="badge" active={activeId === "badge"} layout={layouts.badge} onMouseDown={startMaterialMove}>
+                  <div style={{ ...S.visualBadge, height: "100%", background: curSec?.bg, borderColor: curSec?.bd, color: curSec?.c }}>
                     <Sparkles size={18} /> AI Native
                   </div>
-                </div>
-                <div style={S.slideBodyGrid}>
-                  <div style={{ fontSize: 17, lineHeight: 1.8, color: "var(--color-text-secondary)" }}>{curPage?.b}</div>
-                  <div style={{ ...S.mockVisual, background: visualRevision % 2 ? "#E6F1FB" : curSec?.bg, borderColor: visualRevision % 2 ? "#B5D4F4" : curSec?.bd }}>
-                    <Image size={28} style={{ color: visualRevision % 2 ? "#378ADD" : curSec?.c }} />
-                    <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>
-                      {visualRevision % 2 ? "重绘数据视觉" : "多模态素材区"}
+                </RefineMaterialBox>
+                <RefineMaterialBox id="body" active={activeId === "body"} layout={layouts.body} onMouseDown={startMaterialMove}>
+                  <div style={textMaterialStyle(layouts.body, { lineHeight: 1.8, color: "var(--color-text-secondary)" })}>{displayBody}</div>
+                  {activeId === "body" && <button type="button" aria-label="缩放正文文本框" onMouseDown={(e) => startResize(e, "body")} style={resizeHandleStyle} />}
+                </RefineMaterialBox>
+                <RefineMaterialBox id="visual" active={activeId === "visual"} layout={layouts.visual} onMouseDown={startMaterialMove}>
+                  <div style={{ ...S.mockVisual, height: "100%", minHeight: 0, background: imageChoice.tint || curSec?.bg, borderColor: curSec?.bd }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Image size={24} style={{ color: imageChoice.accent || curSec?.c }} />
+                      <div style={{ fontSize: 15, fontWeight: 650, color: "var(--color-text-primary)" }}>{imageChoice.title}</div>
                     </div>
+                    <img src={imageChoice.image} alt="" style={{ width: "100%", minHeight: 74, objectFit: "cover", borderRadius: 6, border: "1px solid var(--color-border-tertiary)" }} />
                     <div style={S.barRow}><span style={{ ...S.bar, width: "76%", background: curSec?.c }} /><span style={{ ...S.bar, width: "48%", background: "#D4537E" }} /></div>
                     <div style={S.barRow}><span style={{ ...S.bar, width: "58%", background: "#1D9E75" }} /><span style={{ ...S.bar, width: "84%", background: "#378ADD" }} /></div>
                   </div>
-                </div>
+                  {activeId === "visual" && <button type="button" aria-label="缩放图片素材" onMouseDown={(e) => startResize(e, "visual")} style={resizeHandleStyle} />}
+                </RefineMaterialBox>
                 {selRect && (
                   <div
                     style={{
@@ -1060,39 +1155,34 @@ function AIRefinePage({ secs, setSecs, sel, selPage, rightOpen, vers, curV, rest
         </section>
 
         <section style={S.refineSection}>
-          <div style={{ padding: 12, display: "grid", gap: 8 }}>
-            {selectedMaterialCount > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                <span style={{ ...S.selectedMaterialBadge, borderColor: curSec?.bd, background: curSec?.bg, color: curSec?.c }}>
-                  已勾选 {selectedMaterialCount} 个素材
-                </span>
-                {!intent.trim() && (
-                  <span style={S.intentSuggestion}>
-                    {suggestedIntent}
-                  </span>
-                )}
-              </div>
-            )}
+          <div style={{ padding: 8, display: "grid", gap: 6 }}>
+            <span style={{ ...S.selectedMaterialBadge, borderColor: curSec?.bd, background: curSec?.bg, color: curSec?.c }}>
+              {selRect ? `已框选 ${selectedMaterialCount || 1} 个问题区域` : activeMaterial ? `当前素材：${activeMaterial.label}` : "点击画布素材进行编辑"}
+            </span>
             <textarea
-              value={intent}
+              value={editNote}
               onChange={(e) => {
-                setIntent(e.target.value);
+                setEditNote(e.target.value);
                 setRightTab("proposals");
               }}
-              placeholder={selectedMaterialCount > 0 ? suggestedIntent : "输入你希望 AI 精修的方向，例如：标题更有结论感、正文压缩成汇报口径、把图表做得更像对比数据卡。"}
-              style={{ ...S.intentInput, minHeight: 76 }}
+              placeholder="记录本页精修要求。当前版本只演示素材直接操作：拖动素材、编辑文字、替换图片、缩放文本框或图片。"
+              style={{ ...S.intentInput, minHeight: 48 }}
             />
           </div>
         </section>
       </div>
 
       {rightOpen && (
+        <ResizeBar onMouseDown={startPanelResize} />
+      )}
+      {rightOpen && (
         <div style={S.agentPanel}>
           <div style={S.agentHead}>
-            <div style={S.segmented}>
+            <div style={{ ...S.segmented, gridTemplateColumns: "1fr 1fr 1fr" }}>
               {[
                 ["versions", "版本树"],
-                ["proposals", "精修方案"],
+                ["materials", "素材操作"],
+                ["proposals", "AI方案"],
               ].map(([id, label]) => {
                 const active = rightTab === id;
                 return (
@@ -1124,21 +1214,36 @@ function AIRefinePage({ secs, setSecs, sel, selPage, rightOpen, vers, curV, rest
                 toggleSaved={toggleSaved}
                 deleteVersion={deleteVersion}
               />
+            ) : rightTab === "proposals" ? (
+              <ProposalPreviewPanel
+                intent={editNote}
+                proposals={proposals}
+                curSec={curSec}
+                activeMaterial={activeMaterial}
+                selectedMaterialCount={selectedMaterialCount}
+              />
             ) : (
-              <div style={{ height: "100%", padding: 12, display: "grid", gap: 10, overflowY: "auto" }}>
-                {!intent.trim() ? (
-                  <div style={{ border: "1px dashed var(--color-border-tertiary)", borderRadius: 8, padding: 14, color: "var(--color-text-tertiary)", fontSize: 11, lineHeight: 1.7, background: "var(--color-background-secondary)" }}>
-                    在底部输入修改意图后，这里会即时生成三张 mock 精修方案图。可先框选标题、正文或图表区域，让方案更聚焦。
-                  </div>
+              <div style={{ height: "100%", padding: 12, display: "grid", gap: 12, alignContent: "start", overflowY: "auto" }}>
+                {activeMaterial?.kind === "image" ? (
+                  <ImageRefinePanel
+                    choice={imageChoice}
+                    onChoice={setImageChoice}
+                    layout={layouts.visual}
+                    onResize={(delta) => updateLayout("visual", { w: layouts.visual.w + delta, h: layouts.visual.h + delta * 0.65 })}
+                  />
+                ) : activeMaterial?.kind === "decor" ? (
+                  <DecorRefinePanel layout={layouts.badge} onResize={(delta) => updateLayout("badge", { w: layouts.badge.w + delta })} />
                 ) : (
-                  proposals.map((proposal) => (
-                    <RefineProposalCard
-                      key={proposal.index}
-                      proposal={proposal}
-                      curSec={curSec}
-                      onApprove={() => approveProposal(proposal)}
-                    />
-                  ))
+                  <TextRefinePanel
+                    activeId={activeId}
+                    title={displayTitle}
+                    body={displayBody}
+                    onTitle={(value) => updateText("title", value)}
+                    onBody={(value) => updateText("body", value)}
+                    layout={layouts[activeId] || layouts.title}
+                    onResize={resizeTextMaterial}
+                    onStyle={(patch) => materialCanResize && updateLayout(activeId, patch)}
+                  />
                 )}
               </div>
             )}
@@ -1149,7 +1254,165 @@ function AIRefinePage({ secs, setSecs, sel, selPage, rightOpen, vers, curV, rest
   );
 }
 
-function RefineProposalCard({ proposal, curSec, onApprove }) {
+function RefineMaterialBox({ id, active, layout, onMouseDown, children }) {
+  return (
+    <div
+      data-material-id={id}
+      onMouseDown={(e) => onMouseDown(e, id)}
+      style={{
+        position: "absolute",
+        left: layout.x,
+        top: layout.y,
+        width: layout.w,
+        height: layout.h,
+        border: active ? "1.5px solid #7F77DD" : "1px solid transparent",
+        boxShadow: active ? "0 0 0 3px rgba(127,119,221,0.12)" : "none",
+        borderRadius: 8,
+        padding: active ? 4 : 0,
+        cursor: "move",
+        overflow: "hidden",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function TextRefinePanel({ activeId, title, body, onTitle, onBody, layout, onResize, onStyle }) {
+  const activeTextLabel = materialLabel(activeId);
+  const showTitleEditor = activeId === "title";
+  const showBodyEditor = activeId === "body";
+  return (
+    <>
+      <PanelTitle icon={<Type size={14} />} title="文本编辑" />
+      <div style={{ ...S.agentBlock, gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <label style={S.agentBlock}>
+          <span style={S.agentLabel}>{activeTextLabel}字号</span>
+          <input
+            type="number"
+            min="8"
+            max="72"
+            value={layout.fontSize || defaultFontSize(activeId)}
+            onChange={(e) => onStyle({ fontSize: Number(e.target.value) || defaultFontSize(activeId) })}
+            style={S.select}
+          />
+        </label>
+        <label style={S.agentBlock}>
+          <span style={S.agentLabel}>字体</span>
+          <select
+            value={layout.fontFamily || REFINE_FONT_OPTIONS[0].value}
+            onChange={(e) => onStyle({ fontFamily: e.target.value })}
+            style={S.select}
+          >
+            {REFINE_FONT_OPTIONS.map((font) => (
+              <option key={font.value} value={font.value}>{font.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {showTitleEditor && (
+        <label style={S.agentBlock}>
+          <span style={S.agentLabel}>标题文字</span>
+          <textarea value={title} onChange={(e) => onTitle(e.target.value)} style={{ ...S.intentInput, minHeight: 108 }} />
+        </label>
+      )}
+      {showBodyEditor && (
+        <label style={S.agentBlock}>
+          <span style={S.agentLabel}>正文文字</span>
+          <textarea value={body} onChange={(e) => onBody(e.target.value)} style={{ ...S.intentInput, minHeight: 132 }} />
+        </label>
+      )}
+      {!showTitleEditor && !showBodyEditor && (
+        <span style={S.intentSuggestion}>这个文字素材暂时只支持拖动、缩放、字号和字体调整。</span>
+      )}
+      <div style={{ ...S.agentBlock, marginTop: 2 }}>
+        <span style={S.agentLabel}>文本框尺寸</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button type="button" onClick={() => onResize({ w: -24, h: -12 })} style={S.rejectBtn}>缩小</button>
+          <button type="button" onClick={() => onResize({ w: 24, h: 12 })} style={S.approveBtn}>放大</button>
+        </div>
+        <span style={S.intentSuggestion}>当前 {Math.round(layout.w)} x {Math.round(layout.h)}，拉伸会同步改变字号。</span>
+      </div>
+    </>
+  );
+}
+
+function ImageRefinePanel({ choice, onChoice, layout, onResize }) {
+  return (
+    <>
+      <PanelTitle icon={<Image size={14} />} title="图片素材" />
+      <div style={{ display: "grid", gap: 8 }}>
+        {REFINE_IMAGE_CANDIDATES.map((item) => {
+          const active = item.id === choice.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onChoice(item)}
+              style={{
+                ...S.visualCard,
+                gridTemplateColumns: "54px minmax(0,1fr)",
+                alignItems: "center",
+                borderColor: active ? item.accent : "var(--color-border-tertiary)",
+                background: active ? item.tint : "var(--color-background-primary)",
+              }}
+            >
+              <img src={item.image} alt="" style={{ width: 54, height: 34, objectFit: "cover", borderRadius: 5 }} />
+              <span style={{ fontSize: 11, fontWeight: 650, color: active ? item.accent : "var(--color-text-primary)" }}>{item.title}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ ...S.agentBlock, marginTop: 2 }}>
+        <span style={S.agentLabel}>尺寸</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button type="button" onClick={() => onResize(-18)} style={S.rejectBtn}>缩小</button>
+          <button type="button" onClick={() => onResize(18)} style={S.approveBtn}>放大</button>
+        </div>
+        <span style={S.intentSuggestion}>当前 {Math.round(layout.w)} x {Math.round(layout.h)}，可在画布拖动，右下角可缩放。</span>
+      </div>
+    </>
+  );
+}
+
+function DecorRefinePanel({ layout, onResize }) {
+  return (
+    <>
+      <PanelTitle icon={<Sparkles size={14} />} title="角标装饰" />
+      <span style={S.chip}>AI Native 角标</span>
+      <div style={{ ...S.agentBlock, marginTop: 2 }}>
+        <span style={S.agentLabel}>尺寸</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button type="button" onClick={() => onResize(-12)} style={S.rejectBtn}>收窄</button>
+          <button type="button" onClick={() => onResize(12)} style={S.approveBtn}>加宽</button>
+        </div>
+        <span style={S.intentSuggestion}>当前宽度 {Math.round(layout.w)}，可在画布直接拖动位置。</span>
+      </div>
+    </>
+  );
+}
+
+function ProposalPreviewPanel({ intent, proposals, curSec, activeMaterial, selectedMaterialCount }) {
+  return (
+    <div style={{ height: "100%", padding: 12, display: "grid", gap: 10, overflowY: "auto" }}>
+      {!intent.trim() ? (
+        <div style={{ border: "1px dashed var(--color-border-tertiary)", borderRadius: 8, padding: 14, color: "var(--color-text-tertiary)", fontSize: 11, lineHeight: 1.7, background: "var(--color-background-secondary)" }}>
+          在底部输入精修要求后，这里会像 main 分支一样实时展示 3 张 mock AI 方案图。当前焦点：{selectedMaterialCount ? `框选区域（${selectedMaterialCount} 个素材）` : activeMaterial?.label || "当前页"}。
+        </div>
+      ) : (
+        proposals.map((proposal) => (
+          <RefineProposalPreviewCard
+            key={proposal.index}
+            proposal={proposal}
+            curSec={curSec}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+function RefineProposalPreviewCard({ proposal, curSec }) {
   return (
     <div className="anim-fade-up" style={{ animationDelay: `${(proposal.index - 1) * 80}ms`, ...S.proposalCard }}>
       <div style={{ ...S.proposalImage, borderColor: proposal.border, background: proposal.bg }}>
@@ -1173,11 +1436,104 @@ function RefineProposalCard({ proposal, curSec, onApprove }) {
         <div style={{ fontSize: 12, fontWeight: 650 }}>方案 {proposal.index} · {proposal.name}</div>
         <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", lineHeight: 1.5 }}>{proposal.summary}</div>
       </div>
-      <button type="button" onClick={onApprove} style={S.approveBtn}>
-        <Check size={13} /> 采纳
-      </button>
     </div>
   );
+}
+
+function materialLabel(id) {
+  return REFINE_MATERIAL_DEFS.find((item) => item.id === id)?.label || id;
+}
+
+function PanelTitle({ icon, title }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 650 }}>
+      {icon}
+      {title}
+    </div>
+  );
+}
+
+const REFINE_MATERIAL_DEFS = [
+  { id: "title", label: "标题文本", kind: "text" },
+  { id: "section", label: "章节说明", kind: "text" },
+  { id: "badge", label: "角标装饰", kind: "decor" },
+  { id: "body", label: "正文文本", kind: "text" },
+  { id: "visual", label: "图片/图表素材", kind: "image" },
+];
+
+const REFINE_FONT_OPTIONS = [
+  { label: "系统无衬线", value: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+  { label: "汇报黑体", value: "'Microsoft YaHei', 'PingFang SC', sans-serif" },
+  { label: "标题宋体", value: "Georgia, 'Times New Roman', 'SimSun', serif" },
+  { label: "等宽技术", value: "'SFMono-Regular', Consolas, 'Liberation Mono', monospace" },
+];
+
+const SLIDE_W = 720;
+const SLIDE_H = 450;
+
+const REFINE_BASE_LAYOUTS = {
+  title: { x: 44, y: 66, w: 430, h: 76, fontSize: 30, fontFamily: REFINE_FONT_OPTIONS[0].value },
+  section: { x: 44, y: 145, w: 430, h: 28, fontSize: 14, fontFamily: REFINE_FONT_OPTIONS[0].value },
+  badge: { x: 535, y: 44, w: 141, h: 38 },
+  body: { x: 44, y: 184, w: 362, h: 170, fontSize: 17, fontFamily: REFINE_FONT_OPTIONS[0].value },
+  visual: { x: 436, y: 184, w: 240, h: 190 },
+};
+
+const resizeHandleStyle = {
+  position: "absolute",
+  right: 2,
+  bottom: 2,
+  width: 16,
+  height: 16,
+  padding: 0,
+  border: "1px solid #7F77DD",
+  borderRadius: 5,
+  background: "#fff",
+  cursor: "nwse-resize",
+};
+
+function cloneRefineLayouts() {
+  return structuredClone(REFINE_BASE_LAYOUTS);
+}
+
+function clampLayout(rect) {
+  const w = Math.min(640, Math.max(80, rect.w));
+  const h = Math.min(320, Math.max(34, rect.h));
+  const fontSize = rect.fontSize ? Math.min(72, Math.max(8, rect.fontSize)) : rect.fontSize;
+  return {
+    x: Math.min(SLIDE_W - w - 24, Math.max(24, rect.x)),
+    y: Math.min(SLIDE_H - h - 24, Math.max(24, rect.y)),
+    w,
+    h,
+    ...(fontSize ? { fontSize } : {}),
+    ...(rect.fontFamily ? { fontFamily: rect.fontFamily } : {}),
+  };
+}
+
+function countSelectedMaterials(rect, layouts) {
+  if (!rect) return 0;
+  return REFINE_MATERIAL_DEFS.filter((material) => rectsIntersect(rect, layouts[material.id])).length;
+}
+
+function rectsIntersect(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function isTextMaterial(id) {
+  return REFINE_MATERIAL_DEFS.find((item) => item.id === id)?.kind === "text";
+}
+
+function defaultFontSize(id) {
+  return REFINE_BASE_LAYOUTS[id]?.fontSize || 14;
+}
+
+function textMaterialStyle(layout, extra = {}) {
+  return {
+    fontSize: layout.fontSize || 14,
+    fontFamily: layout.fontFamily || REFINE_FONT_OPTIONS[0].value,
+    overflowWrap: "anywhere",
+    ...extra,
+  };
 }
 
 function buildRefineProposals(intent, region, selPage, curPage, curSec) {
@@ -1201,7 +1557,6 @@ function buildRefineProposals(intent, region, selPage, curPage, curSec) {
       accent,
       bg: "#FAFAFF",
       border,
-      nextTitle: refineTitle(baseTitle, text),
       previewTitle: refineTitle(baseTitle, text),
       previewBody: baseBody,
       summary: `围绕「${shortIntent}」强化${target}，让标题更像可直接汇报的判断。`,
@@ -1214,7 +1569,6 @@ function buildRefineProposals(intent, region, selPage, curPage, curSec) {
       accent: "#1D9E75",
       bg: "var(--color-background-primary)",
       border: "#9FE1CB",
-      nextBody: `${baseBody}｜已按「${text}」压缩为三句高密度汇报表达。`,
       previewTitle: baseTitle,
       previewBody: `按「${shortIntent}」重写：先给结论，再保留关键因果与数据锚点。`,
       summary: `保留原页信息骨架，压缩${target}文字并突出汇报口径。`,
@@ -1227,7 +1581,6 @@ function buildRefineProposals(intent, region, selPage, curPage, curSec) {
       accent: "#378ADD",
       bg,
       border: "#B5D4F4",
-      note: `视觉素材已按「${text}」重绘为对比数据卡片。`,
       previewTitle: baseTitle,
       previewBody: "将局部素材组织成对比卡片，强化差异、趋势与结论标注。",
       summary: `把${target}转成图片式数据视觉，适合右侧素材区或整页强调。`,
@@ -1241,31 +1594,10 @@ function refineTitle(title, intent) {
   return `${title}：${cleanIntent}`;
 }
 
-const REFINE_MATERIALS = [
-  { id: "title", x: 44, y: 66, w: 430, h: 76 },
-  { id: "section", x: 44, y: 145, w: 430, h: 26 },
-  { id: "badge", x: 535, y: 44, w: 141, h: 38 },
-  { id: "body", x: 44, y: 184, w: 362, h: 170 },
-  { id: "visual-card", x: 436, y: 184, w: 240, h: 170 },
-  { id: "visual-bars-a", x: 454, y: 286, w: 204, h: 14 },
-  { id: "visual-bars-b", x: 454, y: 308, w: 204, h: 14 },
-];
-
-function countSelectedMaterials(rect) {
-  if (!rect) return 0;
-  return REFINE_MATERIALS.filter((material) => rectsIntersect(rect, material)).length;
-}
-
-function rectsIntersect(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
-function buildSuggestedIntent(region, count) {
-  if (!count) return "";
-  if (region === "title") return "建议：强化标题结论，把选中素材改成更适合汇报的判断句。";
-  if (region === "visual") return "建议：重绘选中素材，突出数据对比、趋势和关键结论标注。";
-  if (region === "body") return "建议：压缩选中素材文字，保留关键因果和可汇报的数据锚点。";
-  return "建议：统一优化选中素材的表达层级、留白和视觉重点。";
+function materialRegion(id) {
+  if (id === "title" || id === "section") return "title";
+  if (id === "visual" || id === "badge") return "visual";
+  return "body";
 }
 
 function classifyRegion(rect) {
@@ -1280,7 +1612,7 @@ function regionLabel(region) {
   if (region === "title") return "标题区域";
   if (region === "body") return "正文区域";
   if (region === "visual") return "图片/图表区域";
-  return "未选择";
+  return "当前页";
 }
 
 function ThinkingBar({ visible }) {
