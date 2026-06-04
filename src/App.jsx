@@ -14,6 +14,17 @@ import {
 } from "./data/mock";
 import { useStoryflow } from "./hooks/useStoryflow";
 
+const STAGE_LABELS = {
+  intent: "意图对齐",
+  visual: "主视觉",
+  structure: "结构编辑",
+  refine: "AI精修",
+};
+
+function stageLabel(stage) {
+  return STAGE_LABELS[stage] || "结构编辑";
+}
+
 function App() {
   const story = useStoryflow();
   const [showIntro, setShowIntro] = useState(true);
@@ -25,6 +36,38 @@ function App() {
     rightOpen: true,
   });
   const shellRef = useRef(null);
+  const currentStage = showIntro ? "intent" : view === "visual" ? "visual" : view === "refine" ? "refine" : "structure";
+
+  const setStageView = (stage) => {
+    setShowIntro(stage === "intent");
+    setView(stage === "intent" ? "intent" : stage === "structure" ? "edit" : stage);
+  };
+
+  const handleStageJump = (targetStage) => {
+    if (!targetStage || targetStage === currentStage) return;
+
+    story.commitVersion(`跳转：${stageLabel(currentStage)} → ${stageLabel(targetStage)}`, story.secs, {
+      stage: targetStage,
+      kind: "jump",
+      fromStage: currentStage,
+      toStage: targetStage,
+    });
+    setStageView(targetStage);
+  };
+
+  const handleRestore = (vid) => {
+    const version = story.vers.find((v) => v.id === vid);
+    story.restore(vid);
+    setStageView(version?.stage || "structure");
+  };
+
+  const commitStructureVersion = (label, nextSecs) => {
+    story.commitVersion(label, nextSecs, { stage: "structure", kind: "edit" });
+  };
+
+  const commitRefineVersion = (label, nextSecs) => {
+    story.commitVersion(label, nextSecs, { stage: "refine", kind: "refine" });
+  };
 
   const setLeftOpen = (next) => {
     setLayout((prev) => ({ ...prev, leftOpen: typeof next === "function" ? next(prev.leftOpen) : next }));
@@ -64,19 +107,14 @@ function App() {
           rightOpen={layout.rightOpen}
           setLeftOpen={setLeftOpen}
           setRightOpen={setRightOpen}
-          activeStage={showIntro ? "intent" : view === "visual" ? "visual" : view === "refine" ? "refine" : "structure"}
-          onOpenRefine={() => {
-            setShowIntro(false);
-            setView("refine");
-          }}
+          activeStage={currentStage}
+          onStageJump={handleStageJump}
+          onOpenRefine={() => handleStageJump("refine")}
         />
         {/* SLOT:intro */}
         {showIntro && view === "intent" && (
           <Intro
-            onDone={() => {
-              setShowIntro(false);
-              setView("visual");
-            }}
+            onDone={() => handleStageJump("visual")}
           />
         )}
         {view === "refine" ? (
@@ -88,19 +126,25 @@ function App() {
             setSelPage={story.setSelPage}
             vers={story.vers}
             curV={story.curV}
-            restore={story.restore}
-            commitVersion={story.commitVersion}
+            restore={handleRestore}
+            commitVersion={commitRefineVersion}
             addMsg={story.addMsg}
-            onBack={() => setView("edit")}
+            onBack={() => handleStageJump("structure")}
           />
         ) : view === "visual" ? (
           <VisualSelectionPage
             onGenerate={(visual) => {
-              story.setSecs(applyVisualToSections(visual, story.secs));
+              const nextSecs = applyVisualToSections(visual, story.secs);
+              story.commitVersion(`主视觉：${visual.title}`, nextSecs, {
+                stage: "structure",
+                kind: "edit",
+                fromStage: "visual",
+                toStage: "structure",
+              });
               story.setSel(0);
               story.setSelPage(0);
               story.addMsg("sys", `已选择主视觉「${visual.title}」，并生成结构编辑初稿。`);
-              setView("edit");
+              setStageView("structure");
             }}
           />
         ) : (
@@ -123,7 +167,7 @@ function App() {
                   overI={story.overI}
                   setOverI={story.setOverI}
                   onDrop={story.onDrop}
-                  commitVersion={story.commitVersion}
+                  commitVersion={commitStructureVersion}
                 />
               )}
             </div>
@@ -145,7 +189,7 @@ function App() {
             </div>
             <ResizeBar hidden={!layout.rightOpen} onMouseDown={startResize("right")} />
             <div style={{ minWidth: 0, overflow: "hidden" }}>
-              {layout.rightOpen && <VersionTree vers={story.vers} curV={story.curV} restore={story.restore} />}
+              {layout.rightOpen && <VersionTree vers={story.vers} curV={story.curV} restore={handleRestore} />}
             </div>
           </div>
         )}
@@ -530,8 +574,8 @@ const S = {
   },
   intentInput: {
     width: "100%",
-    minHeight: 154,
-    resize: "vertical",
+    minHeight: 100,
+    resize: "none",
     borderRadius: 7,
     border: "1px solid var(--color-border-tertiary)",
     background: "var(--color-background-secondary)",
@@ -830,15 +874,37 @@ function AIRefinePage({ secs, sel, selPage, setSelPage, vers, curV, restore, com
   return (
     <div style={S.refineRoot}>
       <div style={S.refineLeftPanel}>
-        <div style={S.refineLeftHead}>页面与意图</div>
-        <div style={{ padding: 14, display: "grid", gap: 16, overflowY: "auto" }}>
-          <div style={S.agentBlock}>
-            <div style={S.agentLabel}>当前章节</div>
-            <div style={{ fontSize: 13, fontWeight: 650, color: "var(--color-text-primary)", lineHeight: 1.35 }}>{curSec?.title}</div>
-            <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", lineHeight: 1.45 }}>{curSec?.sub}</div>
+        <div style={S.refineLeftHead}>页面概览</div>
+        {/* 上段：页面信息概览 */}
+        <div style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{
+            borderRadius: 8,
+            border: `1px solid ${curSec?.bd || "var(--color-border-tertiary)"}`,
+            background: curSec?.bg || "var(--color-background-secondary)",
+            padding: "10px 12px",
+            display: "grid",
+            gap: 7,
+            flexShrink: 0,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 16, height: 3, borderRadius: 2, background: curSec?.c, flexShrink: 0 }} />
+              <span style={{ fontSize: 10, color: curSec?.c, fontWeight: 600 }}>
+                第 {selPage + 1} 页 · {curSec?.title}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 650, color: "var(--color-text-primary)", lineHeight: 1.35 }}>
+              {curPage?.h}
+            </div>
+            <div style={{
+              fontSize: 10, color: "var(--color-text-secondary)", lineHeight: 1.55,
+              overflow: "hidden", display: "-webkit-box",
+              WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
+            }}>
+              {curPage?.b}
+            </div>
           </div>
-          <div style={S.agentBlock}>
-            <div style={S.agentLabel}>PPT 页</div>
+          <div style={{ flexShrink: 0, display: "grid", gap: 7 }}>
+            <div style={S.agentLabel}>切换页面</div>
             <div style={S.pageNumGrid}>
               {curSec?.pages.map((page, index) => {
                 const active = index === selPage;
@@ -846,10 +912,7 @@ function AIRefinePage({ secs, sel, selPage, setSelPage, vers, curV, restore, com
                   <button
                     key={page.id}
                     type="button"
-                    onClick={() => {
-                      setSelPage(index);
-                      setSelRect(null);
-                    }}
+                    onClick={() => { setSelPage(index); setSelRect(null); }}
                     style={{
                       ...S.pageNumBtn,
                       border: active ? `1px solid ${curSec.bd}` : "1px solid var(--color-border-tertiary)",
@@ -863,22 +926,21 @@ function AIRefinePage({ secs, sel, selPage, setSelPage, vers, curV, restore, com
               })}
             </div>
           </div>
-          <div style={S.agentBlock}>
-            <div style={S.agentLabel}>选区</div>
-            <div style={S.chip}>{selRect ? regionLabel(region) : "未框选时按整页生成"}</div>
-          </div>
-          <div style={S.agentBlock}>
-            <div style={S.agentLabel}>修改意图</div>
-            <textarea
-              value={intent}
-              onChange={(e) => {
-                setIntent(e.target.value);
-                setRightTab("proposals");
-              }}
-              placeholder="输入你希望 AI 精修的方向，例如：标题更有结论感、正文压缩成汇报口径、把图表做得更像对比数据卡。"
-              style={S.intentInput}
-            />
-          </div>
+        </div>
+        {/* 分隔线 */}
+        <div style={{ height: "0.5px", background: "var(--color-border-tertiary)", flexShrink: 0 }} />
+        {/* 下段：修改意图 */}
+        <div style={{ padding: 14, display: "grid", gap: 8, flexShrink: 0 }}>
+          <div style={S.agentLabel}>修改意图</div>
+          <textarea
+            value={intent}
+            onChange={(e) => {
+              setIntent(e.target.value);
+              setRightTab("proposals");
+            }}
+            placeholder="输入你希望 AI 精修的方向，例如：标题更有结论感、正文压缩成汇报口径、把图表做得更像对比数据卡。"
+            style={S.intentInput}
+          />
         </div>
       </div>
       <div style={S.refineCanvasCol}>
