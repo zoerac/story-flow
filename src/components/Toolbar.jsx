@@ -1,6 +1,6 @@
 import { GitFork, Maximize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Sparkles } from "lucide-react";
 
-export function Toolbar({ leftOpen, rightOpen, setLeftOpen, setRightOpen, activeStage = "structure", onOpenRefine }) {
+export function Toolbar({ leftOpen, rightOpen, setLeftOpen, setRightOpen, activeStage = "structure", onStageJump, onOpenRefine }) {
   const focused = !leftOpen && !rightOpen;
   const stages = [
     { id: "intent", label: "1 意图对齐" },
@@ -18,8 +18,10 @@ export function Toolbar({ leftOpen, rightOpen, setLeftOpen, setRightOpen, active
         {stages.map((stage) => {
           const active = stage.id === activeStage;
           return (
-            <span
+            <button
               key={stage.id}
+              type="button"
+              onClick={() => onStageJump?.(stage.id)}
               style={{
                 fontSize: 10,
                 lineHeight: "18px",
@@ -30,10 +32,12 @@ export function Toolbar({ leftOpen, rightOpen, setLeftOpen, setRightOpen, active
                 background: active ? "#EEEDFE" : "var(--color-background-secondary)",
                 color: active ? "#3C3489" : "var(--color-text-tertiary)",
                 whiteSpace: "nowrap",
+                cursor: active ? "default" : "pointer",
+                fontFamily: "inherit",
               }}
             >
               {stage.label}
-            </span>
+            </button>
           );
         })}
       </div>

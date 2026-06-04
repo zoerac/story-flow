@@ -6,7 +6,7 @@ const VISUAL_IMAGES = [
   "/canva_data/Beige%20Minimalist%20Ad%20Campaign%20Creative%20Brief%20Presentation%20(2).png",
 ];
 
-const palettes = [
+export const palettes = [
   { c: "#7F77DD", bg: "#EEEDFE", bd: "#CECBF6", accent: "#D4537E" },
   { c: "#D4537E", bg: "#FBEAF0", bd: "#F4C0D1", accent: "#1D9E75" },
   { c: "#1D9E75", bg: "#E1F5EE", bd: "#9FE1CB", accent: "#378ADD" },
@@ -106,6 +106,203 @@ export const INIT = [
   },
 ];
 
+const EXECUTIVE_BRIEFING = [
+  {
+    id: "exec-s1",
+    title: "先给结论",
+    sub: "董事会关心的判断与取舍",
+    c: "#7F77DD",
+    bg: "#EEEDFE",
+    bd: "#CECBF6",
+    pages: [
+      page("exec-s1p1", "结论：结构层决定 AI PPT 的可信度", "先明确业务判断：AI Native 编辑器必须先稳定叙事骨架，再让内容与视觉跟随变化。"),
+      page("exec-s1p2", "本次汇报的三项决策", "是否进入 MVP、优先服务哪类高频汇报、以及版本树能力是否作为核心差异化。"),
+    ],
+  },
+  {
+    id: "exec-s2",
+    title: "机会窗口",
+    sub: "高频汇报场景正在重构",
+    c: "#D4537E",
+    bg: "#FBEAF0",
+    bd: "#F4C0D1",
+    pages: [
+      page("exec-s2p1", "企业汇报进入 AI 协作阶段", "从单页生成转向结构协同，用户更关注能否快速改出一版可讲的故事线。"),
+      page("exec-s2p2", "目标用户与切入点", "产品经理、咨询顾问、研究团队都需要把松散材料压缩成可演示的叙事顺序。"),
+    ],
+  },
+  {
+    id: "exec-s3",
+    title: "核心方案",
+    sub: "故事线优先的编辑闭环",
+    c: "#1D9E75",
+    bg: "#E1F5EE",
+    bd: "#9FE1CB",
+    pages: [
+      page("exec-s3p1", "StoryFlow 工作台", "左侧结构、中央预览、右侧版本树同步变化，拖拽章节即触发 PPT 内容适配。"),
+      page("exec-s3p2", "版本树降低试错成本", "每一次结构调整都保留快照，用户能从任意历史节点继续分叉探索。"),
+    ],
+  },
+  {
+    id: "exec-s4",
+    title: "验证结果",
+    sub: "效率、质量与可控性指标",
+    c: "#378ADD",
+    bg: "#E6F1FB",
+    bd: "#B5D4F4",
+    pages: [
+      page("exec-s4p1", "结构调整效率提升 68%", "测试中用户平均用更少步骤完成章节重排、正文聚焦和汇报口径切换。"),
+      page("exec-s4p2", "AI 输出更能解释变更", "系统不仅换顺序，还能说明前后章节为什么需要补充过渡内容。"),
+    ],
+  },
+  {
+    id: "exec-s5",
+    title: "推进计划",
+    sub: "两周 MVP 与风险控制",
+    c: "#D85A30",
+    bg: "#FAECE7",
+    bd: "#F5C4B3",
+    pages: [
+      page("exec-s5p1", "先做结构影响闭环", "优先打通主视觉选择、结构拖拽、版本恢复三项体验，再扩展对话精修。"),
+      page("exec-s5p2", "需要的资源与边界", "保持 mock 演示，不接真实 API；设计资产使用稳定公共路径，便于现场演示。"),
+    ],
+  },
+];
+
+const PRODUCT_ROADSHOW = [
+  {
+    id: "road-s1",
+    title: "产品愿景",
+    sub: "把 PPT 变成可协作的叙事画布",
+    c: "#D4537E",
+    bg: "#FBEAF0",
+    bd: "#F4C0D1",
+    pages: [
+      page("road-s1p1", "StoryFlow：AI Native 演示文稿工作台", "面向频繁汇报的人群，把素材、故事线、版本探索放到同一个编辑体验里。"),
+      page("road-s1p2", "不是再生成一份 PPT", "核心价值是让用户能持续调整结构，并看到 PPT 初稿实时跟随。"),
+    ],
+  },
+  {
+    id: "road-s2",
+    title: "用户痛点",
+    sub: "从灵感到可讲稿之间断裂",
+    c: "#7F77DD",
+    bg: "#EEEDFE",
+    bd: "#CECBF6",
+    pages: [
+      page("road-s2p1", "三类断裂", "材料堆积、结构难改、AI 生成结果无法承接用户后续意图。"),
+      page("road-s2p2", "现有工具的空白", "多数工具擅长单页美化，却缺少结构级编辑和变更后的内容适配。"),
+    ],
+  },
+  {
+    id: "road-s3",
+    title: "核心能力",
+    sub: "主视觉、故事线与精修代理",
+    c: "#1D9E75",
+    bg: "#E1F5EE",
+    bd: "#9FE1CB",
+    pages: [
+      page("road-s3p1", "先选视觉方向，再生成故事线", "Canva 候选与 AI 生成候选共同决定初稿的色板、口径和页面内容。"),
+      page("road-s3p2", "拖拽结构即改变内容", "章节重排后，相邻页会补齐承接与引出语，模拟真实 AI 对结构的理解。"),
+      page("road-s3p3", "框选后进入 AI 精修", "用户可围绕标题、正文或素材区提出局部修改意图，并把结果写入版本树。"),
+    ],
+  },
+  {
+    id: "road-s4",
+    title: "差异化",
+    sub: "从页面工具升级为叙事系统",
+    c: "#378ADD",
+    bg: "#E6F1FB",
+    bd: "#B5D4F4",
+    pages: [
+      page("road-s4p1", "结构层是产品护城河", "把章节、页面、版本、AI 对话都绑定在同一条故事线上，形成持续上下文。"),
+      page("road-s4p2", "适配多类汇报场景", "高管简报强调先结论，产品路演强调价值闭环，课程汇报强调概念递进。"),
+    ],
+  },
+  {
+    id: "road-s5",
+    title: "发布节奏",
+    sub: "从 demo 到可试用版本",
+    c: "#D85A30",
+    bg: "#FAECE7",
+    bd: "#F5C4B3",
+    pages: [
+      page("road-s5p1", "四步体验闭环", "意图对齐、主视觉选择、结构编辑、AI 精修构成首个可演示版本。"),
+      page("road-s5p2", "下一步路线", "增加更多视觉 mock、结构影响模板和演示前的自动结构体检。"),
+    ],
+  },
+];
+
+const ACADEMIC_REPORT = [
+  {
+    id: "acad-s1",
+    title: "研究问题",
+    sub: "为什么需要结构驱动的 PPT 编辑",
+    c: "#378ADD",
+    bg: "#E6F1FB",
+    bd: "#B5D4F4",
+    pages: [
+      page("acad-s1p1", "研究背景：生成式 AI 与演示文稿生产", "现有研究多关注内容生成质量，较少讨论用户如何在结构层持续控制 AI 输出。"),
+      page("acad-s1p2", "核心问题", "当用户移动章节或调整叙事顺序时，系统如何保持页面内容、过渡关系与版本历史的一致性。"),
+    ],
+  },
+  {
+    id: "acad-s2",
+    title: "相关工作",
+    sub: "文档生成、人机协作与版本管理",
+    c: "#7F77DD",
+    bg: "#EEEDFE",
+    bd: "#CECBF6",
+    pages: [
+      page("acad-s2p1", "三条研究脉络", "自动化内容生成、交互式编辑系统、以及面向创作任务的版本回溯机制。"),
+      page("acad-s2p2", "研究空白", "多数系统没有把结构调整视为会影响页面语义的编辑行为。"),
+    ],
+  },
+  {
+    id: "acad-s3",
+    title: "系统设计",
+    sub: "StoryFlow 的结构层模型",
+    c: "#1D9E75",
+    bg: "#E1F5EE",
+    bd: "#9FE1CB",
+    pages: [
+      page("acad-s3p1", "章节到页面的冻结模型", "section 包含标题、副标题、色板和 pages，所有 mock 变化都保持同一数据契约。"),
+      page("acad-s3p2", "结构影响模拟", "拖拽后不仅重排数组，还修改章节定位与相邻页面正文，展示语义联动。"),
+      page("acad-s3p3", "快照式版本树", "restore 使用深拷贝快照，确保历史版本包含用户编辑后的真实页面内容。"),
+    ],
+  },
+  {
+    id: "acad-s4",
+    title: "实验与观察",
+    sub: "原型测试中的行为变化",
+    c: "#D4537E",
+    bg: "#FBEAF0",
+    bd: "#F4C0D1",
+    pages: [
+      page("acad-s4p1", "任务设置", "参与者需要完成主视觉选择、章节重排、版本恢复和局部精修四类操作。"),
+      page("acad-s4p2", "关键观察", "当正文能体现结构变化时，用户更容易相信 AI 理解了自己的编辑意图。"),
+    ],
+  },
+  {
+    id: "acad-s5",
+    title: "结论",
+    sub: "结构层作为 AI Native 编辑的基础",
+    c: "#D85A30",
+    bg: "#FAECE7",
+    bd: "#F5C4B3",
+    pages: [
+      page("acad-s5p1", "主要结论", "结构层让 AI 生成从一次性输出转向可解释、可回溯、可继续编辑的协作过程。"),
+      page("acad-s5p2", "后续工作", "进一步扩展结构影响模板，并引入更真实的素材与页面布局 mock。"),
+    ],
+  },
+];
+
+export const MOCK_STORYLINE_DRAFTS = [
+  { id: "executive", label: "高管汇报", keywords: ["高管", "简报", "结论", "决策", "咨询", "指标", "董事会"], sections: EXECUTIVE_BRIEFING },
+  { id: "roadshow", label: "产品路演", keywords: ["产品", "路演", "发布", "品牌", "路线", "规划", "SaaS", "亮点"], sections: PRODUCT_ROADSHOW },
+  { id: "academic", label: "学术课程", keywords: ["学术", "课程", "课堂", "研究", "论文", "答辩", "实验", "方法论"], sections: ACADEMIC_REPORT },
+];
+
 export const AI_DRAG = [
   (t, d, p) => `已将「${t}」${d}至第 ${p} 位。前后过渡逻辑已自动调整，衔接文案已更新。`,
   (t, d, p) => `结构变更：「${t}」${d}至第 ${p} 位。我重新组织了相关页面论证顺序，确保叙事连贯。`,
@@ -118,6 +315,30 @@ export const AI_CHAT = [
   "「方法论」有 3 页内容偏密。建议拆成 '技术选型' 和 '实现路径' 两个子章节，听众更容易跟上。",
   "从听众视角看，先展示结果再解释方法可能更吸引注意力——试试拖动「实验结果」到「方法论」前面？",
   "当前版本的故事线逻辑清晰。如果想进一步打磨，可以考虑在「核心问题」后加一页 '解决方案概览' 作为过渡。",
+];
+
+export const REFINE_IMAGE_CANDIDATES = [
+  {
+    id: "workflow-cards",
+    title: "多模态卡片墙",
+    image: VISUAL_IMAGES[0],
+    tint: "#EEEDFE",
+    accent: "#7F77DD",
+  },
+  {
+    id: "data-dashboard",
+    title: "数据洞察看板",
+    image: VISUAL_IMAGES[1],
+    tint: "#E6F1FB",
+    accent: "#378ADD",
+  },
+  {
+    id: "structure-map",
+    title: "故事线结构图",
+    image: VISUAL_IMAGES[2],
+    tint: "#E1F5EE",
+    accent: "#1D9E75",
+  },
 ];
 
 export const VISUAL_INTENT_SUMMARY = "面向 AI Native 演示文稿编辑器的产品汇报，视觉要克制、专业、强调结构层与多模态素材的协作关系。";
@@ -164,134 +385,6 @@ export const VISUAL_AI_GENERATIONS = [
   visualItem("ai", 17, "演示前体检雷达", "适合表达结构风险检测与自动建议。", ["体检", "风险", "建议"]),
 ];
 
-export const MOCK_STORYLINE_DRAFTS = [
-  {
-    id: "product-workflow",
-    match: ["产品", "AI", "工作流", "SaaS", "界面", "协作", "多模态", "结构"],
-    sections: [
-      {
-        id: "s1",
-        title: "产品定位",
-        sub: "AI Native 演示文稿编辑器",
-        pages: [
-          page("prod-s1p1", "StoryFlow：从结构开始生成 PPT", "面向产品汇报场景，先确定叙事骨架，再让 AI 补齐页面表达。"),
-          page("prod-s1p2", "用户真正缺的是结构协作", "传统工具偏逐页编辑，AI 工具偏一次性生成，二者都难以持续响应用户意图。"),
-        ],
-      },
-      {
-        id: "s2",
-        title: "核心能力",
-        sub: "故事线、素材与 AI 精修联动",
-        pages: [
-          page("prod-s2p1", "三层协作模型", "故事线负责方向，页面负责呈现，AI 精修负责把局部意图落到可用稿。"),
-          page("prod-s2p2", "多模态素材进入同一画布", "文本、图片、图表与版本记录共同构成可追踪的演示资产。"),
-        ],
-      },
-      {
-        id: "s3",
-        title: "工作流闭环",
-        sub: "从主视觉到结构编辑",
-        pages: [
-          page("prod-s3p1", "先选主视觉，再生成初稿", "视觉意图决定初始色板、页面密度和叙事口径，避免后续反复返工。"),
-          page("prod-s3p2", "结构调整实时影响 PPT", "拖拽章节、切换页面、恢复版本时，预览内容保持和故事线同步。"),
-        ],
-      },
-      {
-        id: "s4",
-        title: "落地价值",
-        sub: "更短路径与更稳定质量",
-        pages: [
-          page("prod-s4p1", "把汇报制作变成可迭代系统", "用户不再从空白页开始，而是在明确意图和版本树中持续推进。"),
-          page("prod-s4p2", "下一步：布局自适应", "让页面内容随结构变化自动重排，降低从初稿到可讲版本的成本。"),
-        ],
-      },
-    ],
-  },
-  {
-    id: "executive-data",
-    match: ["高管", "简报", "结论", "数据", "指标", "洞察", "仪表盘", "对比"],
-    sections: [
-      {
-        id: "s1",
-        title: "一句话结论",
-        sub: "先给决策层判断",
-        pages: [
-          page("exec-s1p1", "AI Native PPT 已具备产品化窗口", "结构编辑、版本回溯与局部精修形成完整闭环，适合进入场景验证。"),
-          page("exec-s1p2", "关键机会来自工作流重构", "价值不在单页生成，而在把汇报制作变成可控、可追踪、可复用的流程。"),
-        ],
-      },
-      {
-        id: "s2",
-        title: "业务痛点",
-        sub: "效率与质量同时受限",
-        pages: [
-          page("exec-s2p1", "当前制作链路存在三类损耗", "需求转译、页面返工、版本分叉让团队难以稳定复用高质量表达。"),
-        ],
-      },
-      {
-        id: "s3",
-        title: "验证指标",
-        sub: "用数据说明改进空间",
-        pages: [
-          page("exec-s3p1", "结构调整效率提升 68%", "用户在章节重排、口径收敛和页面检查上花费的时间显著下降。"),
-          page("exec-s3p2", "满意度稳定在 4.6 / 5", "参与者认为故事线优先的交互比直接生成整套 PPT 更容易掌控。"),
-        ],
-      },
-      {
-        id: "s4",
-        title: "推进建议",
-        sub: "小范围试点到能力扩展",
-        pages: [
-          page("exec-s4p1", "先锁定产品汇报与课程展示", "这两类场景结构明确、反馈周期短，适合验证主视觉和布局自适应能力。"),
-          page("exec-s4p2", "用版本树沉淀组织表达资产", "把每次结构修改记录为可回溯节点，逐步形成团队级汇报模板库。"),
-        ],
-      },
-    ],
-  },
-  {
-    id: "research-method",
-    match: ["研究", "方法论", "实验", "学术", "答辩", "分栏", "结论"],
-    sections: [
-      {
-        id: "s1",
-        title: "研究背景",
-        sub: "生成式 AI 与演示文稿创作",
-        pages: [
-          page("res-s1p1", "从页面生成到结构协同", "研究关注 AI 如何在演示文稿制作中保持用户意图和叙事连贯。"),
-          page("res-s1p2", "现有工具缺少中间层", "直接生成整套 PPT 难以解释和调整，逐页编辑又无法发挥 AI 的规划能力。"),
-        ],
-      },
-      {
-        id: "s2",
-        title: "方法设计",
-        sub: "故事线驱动的交互框架",
-        pages: [
-          page("res-s2p1", "结构层作为核心操作对象", "用户先编辑章节、顺序和页面数量，再让系统同步生成页面草稿。"),
-          page("res-s2p2", "版本树记录意图演化", "每次结构变化都保留快照，支持回退、分叉和对比不同叙事路径。"),
-        ],
-      },
-      {
-        id: "s3",
-        title: "实验观察",
-        sub: "可控性与效率评估",
-        pages: [
-          page("res-s3p1", "参与者更愿意先改结构", "相比直接修改单页，结构层操作更容易表达“想讲什么”和“先后顺序”。"),
-          page("res-s3p2", "AI 精修适合局部闭环", "在用户框选区域后，系统能更准确地给出标题、正文或视觉建议。"),
-        ],
-      },
-      {
-        id: "s4",
-        title: "结论与展望",
-        sub: "向自适应布局扩展",
-        pages: [
-          page("res-s4p1", "故事线是 AI Native PPT 的稳定入口", "它让生成、编辑与版本管理围绕同一个结构对象运行。"),
-          page("res-s4p2", "后续关注布局自动重排", "当章节和页面内容变化时，版式需要自动保持视觉秩序与阅读节奏。"),
-        ],
-      },
-    ],
-  },
-];
-
 const normalize = (text) => String(text || "").toLowerCase();
 const tokenize = (text) => normalize(text).split(/[\s,，。；;、：:·/|]+/u).filter(Boolean);
 const visualTerms = (item) => [...item.tags, ...tokenize(`${item.title} ${item.style}`)].filter((term) => term.length > 1);
@@ -327,16 +420,19 @@ export function visualRecommendationReason(visual, intent) {
 
 export function selectMockDraftForVisual(visual) {
   if (!visual) return cloneSections(INIT);
-  const haystack = normalize(`${visual.title} ${visual.style} ${(visual.tags || []).join(" ")}`);
-  const ranked = MOCK_STORYLINE_DRAFTS
-    .map((draft, index) => ({
-      draft,
-      index,
-      score: draft.match.reduce((sum, term) => sum + (haystack.includes(normalize(term)) ? 1 : 0), 0),
-    }))
-    .sort((a, b) => b.score - a.score || a.index - b.index);
 
-  return cloneSections(ranked[0]?.draft.sections || INIT);
+  const haystack = `${visual.title} ${visual.style} ${(visual.tags || []).join(" ")}`.toLowerCase();
+  return selectMockDraftByText(haystack);
+}
+
+export function selectMockDraftByText(intent) {
+  const haystack = String(intent || "").toLowerCase();
+  const ranked = MOCK_STORYLINE_DRAFTS.map((draft) => ({
+    draft,
+    score: draft.keywords.reduce((sum, keyword) => sum + (haystack.includes(keyword.toLowerCase()) ? 1 : 0), 0),
+  })).sort((a, b) => b.score - a.score);
+
+  return cloneSections(ranked[0]?.score > 0 ? ranked[0].draft.sections : INIT);
 }
 
 export function applyVisualToSections(visual, sections = INIT) {
@@ -361,6 +457,42 @@ export function applyVisualToSections(visual, sections = INIT) {
       })),
     };
   });
+}
+
+const cleanStructuralNote = (text) => String(text || "").replace(/｜结构调整：[^｜]+/gu, "");
+
+const roleForIndex = (index, total) => {
+  if (index === 0) return "先给判断的开场定位";
+  if (index === total - 1) return "收束前文并给出行动方向";
+  return `承接第 ${index} 章并引出第 ${index + 2} 章`;
+};
+
+export function applyStorylineStructuralImpact(sections, moveMeta = {}) {
+  const next = cloneSections(sections);
+  const movedIndex = typeof moveMeta.to === "number" ? moveMeta.to : next.findIndex((s) => s.id === moveMeta.movedId);
+  if (movedIndex < 0 || !next[movedIndex]) return next;
+
+  const moved = next[movedIndex];
+  const prev = next[movedIndex - 1];
+  const following = next[movedIndex + 1];
+  const dirText = moveMeta.direction || (moveMeta.to < moveMeta.from ? "前移" : "后移");
+
+  moved.sub = `${roleForIndex(movedIndex, next.length)} · ${dirText}后的新叙事定位`;
+  if (moved.pages?.[0]) {
+    const prevText = prev ? `承接「${prev.title}」` : "作为开场先建立判断";
+    const nextText = following ? `引出「${following.title}」` : "收束为下一步行动";
+    moved.pages[0].b = `${cleanStructuralNote(moved.pages[0].b)}｜结构调整：${prevText}，并${nextText}。`;
+  }
+
+  if (prev?.pages?.[0]) {
+    prev.pages[0].b = `${cleanStructuralNote(prev.pages[0].b)}｜结构调整：下一章改为「${moved.title}」，因此本页结尾强化过渡钩子。`;
+  }
+
+  if (following?.pages?.[0]) {
+    following.pages[0].b = `${cleanStructuralNote(following.pages[0].b)}｜结构调整：现在从「${moved.title}」进入本章，开头补充新的论证承接。`;
+  }
+
+  return next;
 }
 
 export const cloneSections = (sections) => structuredClone(sections);
