@@ -73,12 +73,12 @@ export function VersionTree({ vers, curV, restore }) {
   const cy = (row) => PAD_Y + row * ROW_H;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", borderLeft: "0.5px solid var(--color-border-tertiary)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden", borderLeft: "0.5px solid var(--color-border-tertiary)" }}>
       <div style={panelHead}>
         <GitBranch size={14} style={{ color: "#D85A30" }} /> 版本树
       </div>
 
-      <div style={{ flex: 1, overflow: "auto", padding: "6px 4px" }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "6px 4px" }}>
         <div style={{ position: "relative", minHeight: svgH }}>
           {/* 图形层：泳道连线 + 节点圆点 */}
           <svg width={graphW} height={svgH} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
