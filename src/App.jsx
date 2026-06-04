@@ -917,6 +917,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
   const [rightTab, setRightTab] = useState("materials");
   const [panelW, setPanelW] = useState(240);
   const [editNote, setEditNote] = useState("");
+  const [selRect, setSelRect] = useState(null);
   const [gesture, setGesture] = useState(null);
   const [imageChoice, setImageChoice] = useState(REFINE_IMAGE_CANDIDATES[0]);
   const [textEdits, setTextEdits] = useState({});
@@ -929,7 +930,8 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
   const displayTitle = pageText.title ?? curPage?.h ?? "当前页标题";
   const displayBody = pageText.body ?? curPage?.b ?? "当前页正文";
   const activeMaterial = REFINE_MATERIAL_DEFS.find((item) => item.id === activeId);
-  const proposalRegion = materialRegion(activeId);
+  const selectedMaterialCount = countSelectedMaterials(selRect, layouts);
+  const proposalRegion = selRect ? classifyRegion(selRect) : materialRegion(activeId);
   const proposals = buildRefineProposals(editNote, proposalRegion, selPage, { ...curPage, h: displayTitle, b: displayBody }, curSec);
 
   const setZoomClamped = (next) => setZoom((prev) => Math.min(1.8, Math.max(0.6, typeof next === "function" ? next(prev) : next)));
@@ -949,11 +951,22 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
     e.stopPropagation();
     const material = REFINE_MATERIAL_DEFS.find((item) => item.id === id);
     setActiveId(id);
+    setSelRect(null);
     setRightTab("materials");
     if (!material) return;
     const point = pointFromEvent(e);
     if (!point) return;
     setGesture({ type: "move", id, start: point, origin: layouts[id] });
+  };
+
+  const startSelection = (e) => {
+    if (e.target.closest("[data-material-id]")) return;
+    const point = pointFromEvent(e);
+    if (!point) return;
+    setActiveId(null);
+    setRightTab("proposals");
+    setGesture({ type: "select", start: point });
+    setSelRect({ x: point.x, y: point.y, w: 0, h: 0 });
   };
 
   const startResize = (e, id) => {
@@ -968,6 +981,15 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
     if (!gesture) return;
     const point = pointFromEvent(e);
     if (!point) return;
+    if (gesture.type === "select") {
+      setSelRect({
+        x: Math.min(gesture.start.x, point.x),
+        y: Math.min(gesture.start.y, point.y),
+        w: Math.abs(point.x - gesture.start.x),
+        h: Math.abs(point.y - gesture.start.y),
+      });
+      return;
+    }
     const dx = point.x - gesture.start.x;
     const dy = point.y - gesture.start.y;
     if (gesture.type === "move") {
@@ -982,7 +1004,12 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
     }
   };
 
-  const onMouseUp = () => setGesture(null);
+  const onMouseUp = () => {
+    if (gesture?.type === "select") {
+      setSelRect((rect) => (!rect || rect.w * rect.h < 500 ? null : rect));
+    }
+    setGesture(null);
+  };
 
   const materialCanResize = activeId && layouts[activeId];
   const resizeTextMaterial = (delta) => {
@@ -1039,6 +1066,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
             <div style={{ width: 720 * zoom, height: 450 * zoom, position: "relative", flexShrink: 0 }}>
               <div
                 ref={canvasRef}
+                onMouseDown={startSelection}
                 onMouseMove={onMouseMove}
                 onMouseUp={onMouseUp}
                 style={{
@@ -1046,7 +1074,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
                   transform: `scale(${zoom})`,
                   transformOrigin: "top left",
                   borderColor: curSec?.bd,
-                  cursor: "default",
+                  cursor: gesture?.type === "select" ? "crosshair" : "default",
                   padding: 0,
                 }}
               >
@@ -1080,6 +1108,21 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
                   </div>
                   {activeId === "visual" && <button type="button" aria-label="缩放图片素材" onMouseDown={(e) => startResize(e, "visual")} style={resizeHandleStyle} />}
                 </RefineMaterialBox>
+                {selRect && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: selRect.x,
+                      top: selRect.y,
+                      width: selRect.w,
+                      height: selRect.h,
+                      border: "2px dashed #7F77DD",
+                      background: "rgba(127,119,221,0.12)",
+                      borderRadius: 4,
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -1088,7 +1131,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
         <section style={S.refineSection}>
           <div style={{ padding: 8, display: "grid", gap: 6 }}>
             <span style={{ ...S.selectedMaterialBadge, borderColor: curSec?.bd, background: curSec?.bg, color: curSec?.c }}>
-              {activeMaterial ? `当前素材：${activeMaterial.label}` : "点击画布素材进行编辑"}
+              {selRect ? `已框选 ${selectedMaterialCount || 1} 个问题区域` : activeMaterial ? `当前素材：${activeMaterial.label}` : "点击画布素材进行编辑"}
             </span>
             <textarea
               value={editNote}
@@ -1143,6 +1186,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
                 proposals={proposals}
                 curSec={curSec}
                 activeMaterial={activeMaterial}
+                selectedMaterialCount={selectedMaterialCount}
               />
             ) : (
               <div style={{ height: "100%", padding: 12, display: "grid", gap: 12, alignContent: "start", overflowY: "auto" }}>
@@ -1314,12 +1358,12 @@ function DecorRefinePanel({ layout, onResize }) {
   );
 }
 
-function ProposalPreviewPanel({ intent, proposals, curSec, activeMaterial }) {
+function ProposalPreviewPanel({ intent, proposals, curSec, activeMaterial, selectedMaterialCount }) {
   return (
     <div style={{ height: "100%", padding: 12, display: "grid", gap: 10, overflowY: "auto" }}>
       {!intent.trim() ? (
         <div style={{ border: "1px dashed var(--color-border-tertiary)", borderRadius: 8, padding: 14, color: "var(--color-text-tertiary)", fontSize: 11, lineHeight: 1.7, background: "var(--color-background-secondary)" }}>
-          在底部输入精修要求后，这里会像 main 分支一样实时展示 3 张 mock AI 方案图。当前焦点：{activeMaterial?.label || "当前页"}。
+          在底部输入精修要求后，这里会像 main 分支一样实时展示 3 张 mock AI 方案图。当前焦点：{selectedMaterialCount ? `框选区域（${selectedMaterialCount} 个素材）` : activeMaterial?.label || "当前页"}。
         </div>
       ) : (
         proposals.map((proposal) => (
@@ -1429,6 +1473,15 @@ function clampLayout(rect) {
   };
 }
 
+function countSelectedMaterials(rect, layouts) {
+  if (!rect) return 0;
+  return REFINE_MATERIAL_DEFS.filter((material) => rectsIntersect(rect, layouts[material.id])).length;
+}
+
+function rectsIntersect(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
 function isTextMaterial(id) {
   return REFINE_MATERIAL_DEFS.find((item) => item.id === id)?.kind === "text";
 }
@@ -1507,6 +1560,14 @@ function refineTitle(title, intent) {
 function materialRegion(id) {
   if (id === "title" || id === "section") return "title";
   if (id === "visual" || id === "badge") return "visual";
+  return "body";
+}
+
+function classifyRegion(rect) {
+  if (!rect) return "none";
+  const midY = rect.y + rect.h / 2;
+  if (midY < 150) return "title";
+  if (midY > 235 && rect.x > 390) return "visual";
   return "body";
 }
 
