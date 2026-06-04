@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, FileText, Sparkles } from "lucide-react";
-import { INTRO_EXAMPLE, INTRO_STEPS } from "../data/intro";
+import { INTRO_DRAFT_ACKS, INTRO_EXAMPLE, INTRO_EXAMPLES, INTRO_STEPS } from "../data/intro";
 import { buildInitialDraft, refineDraft } from "../lib/introEngine";
+import { pick } from "../data/mock";
 import { IntroStoryline } from "./IntroStoryline";
 import { DocModal } from "./DocModal";
 
@@ -66,7 +67,7 @@ export function Intro({ onDone }) {
       }, 300);
     } else {
       setTimeout(() => {
-        pushBubble("ai", "明白了，我先生成一版故事线方案——");
+        pushBubble("ai", pick(INTRO_DRAFT_ACKS));
         startRefine(merged);
       }, 300);
     }
@@ -341,13 +342,13 @@ export function Intro({ onDone }) {
           </div>
         </div>
       ) : (
-        /* —— 采集阶段：单卡对话 + 弹出选项 —— */
+        /* —— 采集阶段：单卡对话，选项 / 文本框作为卡内底部栏，始终在可视范围内 —— */
         <div
           style={{
             position: "relative",
             width: "min(calc(100vw - 40px), 520px)",
             minHeight: 0,
-            maxHeight: "min(54vh, 430px)",
+            maxHeight: "min(62vh, 460px)",
             boxSizing: "border-box",
             display: "flex",
             flexDirection: "column",
@@ -355,57 +356,9 @@ export function Intro({ onDone }) {
             border: "0.5px solid var(--color-border-tertiary)",
             background: "var(--color-background-primary)",
             boxShadow: "0 18px 52px rgba(26,25,21,0.12)",
-            overflow: "visible",
+            overflow: "hidden",
           }}
         >
-          {currentStepIdx >= 0 && (
-            <div
-              className="anim-pop"
-              style={{
-                position: "absolute",
-                left: 14,
-                right: 14,
-                bottom: "calc(100% + 10px)",
-                borderRadius: 10,
-                border: "0.5px solid #CECBF6",
-                background: "#FAFAFF",
-                boxShadow: "0 12px 32px rgba(26,25,21,0.12)",
-                padding: 10,
-                display: "grid",
-                gap: 8,
-              }}
-            >
-              <div style={{ fontSize: 11, fontWeight: 650, color: "#3C3489" }}>
-                {INTRO_STEPS[currentStepIdx].question}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {INTRO_STEPS[currentStepIdx].chips.map((chip, i) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => pickChip(currentStepIdx, chip)}
-                    className="anim-fade-up"
-                    style={{
-                      animationDelay: `${i * 40}ms`,
-                      minHeight: 30,
-                      fontSize: 11,
-                      color: "var(--color-text-secondary)",
-                      background: "var(--color-background-primary)",
-                      border: "0.5px solid var(--color-border-secondary)",
-                      borderRadius: 8,
-                      padding: "0 10px",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "#EEEDFE"; e.currentTarget.style.borderColor = "#CECBF6"; e.currentTarget.style.color = "#3C3489"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-background-primary)"; e.currentTarget.style.borderColor = "var(--color-border-secondary)"; e.currentTarget.style.color = "var(--color-text-secondary)"; }}
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
             <AiBubble>
               <Sparkles size={10} style={{ marginRight: 4, verticalAlign: -1 }} />
@@ -420,6 +373,7 @@ export function Intro({ onDone }) {
             <div ref={chatEndRef} />
           </div>
 
+          {/* 需求阶段：文本框 + 多个示例（卡内底部栏，自动换行不溢出） */}
           {phase === "need" && (
             <div
               style={{
@@ -431,7 +385,7 @@ export function Intro({ onDone }) {
                 gap: 8,
               }}
             >
-              <div style={{ position: "relative", width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+              <div style={{ position: "relative", width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
                 <input
                   autoFocus
                   value={need}
@@ -439,12 +393,10 @@ export function Intro({ onDone }) {
                   onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && submitNeed()}
                   placeholder="描述你要做的演示..."
                   style={{
-                    flex: 1,
-                    minWidth: 0,
                     width: "100%",
                     boxSizing: "border-box",
                     fontSize: 12,
-                    padding: "7px 48px 7px 10px",
+                    padding: "7px 44px 7px 10px",
                     borderRadius: 8,
                     border: "0.5px solid var(--color-border-tertiary)",
                     background: "var(--color-background-secondary)",
@@ -458,14 +410,11 @@ export function Intro({ onDone }) {
                   type="button"
                   onClick={submitNeed}
                   style={{
-                    width: 36,
+                    width: 32,
                     position: "absolute",
                     top: 0,
                     right: 0,
                     bottom: 0,
-                    padding: 0,
-                    fontSize: 12,
-                    borderRadius: 8,
                     border: "none",
                     background: "#7F77DD",
                     color: "#fff",
@@ -474,31 +423,82 @@ export function Intro({ onDone }) {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: 4,
-                    whiteSpace: "nowrap",
+                    borderRadius: 8,
                   }}
                   aria-label="继续"
                 >
                   <ArrowRight size={12} />
                 </button>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 10, color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>示例：</span>
-                <button
-                  type="button"
-                  onClick={() => setNeed(INTRO_EXAMPLE)}
-                  style={{
-                    fontSize: 10,
-                    color: "#7F77DD",
-                    background: "#EEEDFE",
-                    border: "0.5px solid #CECBF6",
-                    borderRadius: 20,
-                    padding: "3px 10px",
-                    cursor: "pointer",
-                  }}
-                >
-                  {INTRO_EXAMPLE}
-                </button>
+                {INTRO_EXAMPLES.map((ex) => (
+                  <button
+                    key={ex}
+                    type="button"
+                    onClick={() => setNeed(ex)}
+                    style={{
+                      maxWidth: "100%",
+                      textAlign: "left",
+                      fontSize: 10,
+                      lineHeight: 1.4,
+                      color: "#7F77DD",
+                      background: "#EEEDFE",
+                      border: "0.5px solid #CECBF6",
+                      borderRadius: 12,
+                      padding: "3px 10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 听众 / 调性阶段：选项卡固定在对话框下方的卡内底部栏 */}
+          {currentStepIdx >= 0 && (
+            <div
+              className="anim-fade-up"
+              style={{
+                padding: "10px 14px",
+                borderTop: "0.5px solid var(--color-border-tertiary)",
+                background: "#FAFAFF",
+                flexShrink: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", display: "flex", alignItems: "center", gap: 5 }}>
+                <Sparkles size={10} /> 点击选择，或直接等我继续提问
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {INTRO_STEPS[currentStepIdx].chips.map((chip, i) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => pickChip(currentStepIdx, chip)}
+                    className="anim-fade-up"
+                    style={{
+                      animationDelay: `${i * 40}ms`,
+                      minHeight: 30,
+                      maxWidth: "100%",
+                      fontSize: 11,
+                      color: "var(--color-text-secondary)",
+                      background: "var(--color-background-primary)",
+                      border: "0.5px solid var(--color-border-secondary)",
+                      borderRadius: 8,
+                      padding: "0 10px",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#EEEDFE"; e.currentTarget.style.borderColor = "#CECBF6"; e.currentTarget.style.color = "#3C3489"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-background-primary)"; e.currentTarget.style.borderColor = "var(--color-border-secondary)"; e.currentTarget.style.color = "var(--color-text-secondary)"; }}
+                  >
+                    {chip}
+                  </button>
+                ))}
               </div>
             </div>
           )}
