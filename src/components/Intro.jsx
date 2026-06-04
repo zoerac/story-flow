@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ArrowRight, Check, FileText, GitFork, Sparkles } from "lucide-react";
 import { GALLERY_TILES, INTRO_EXAMPLE, INTRO_STEPS, buildSummary } from "../data/intro";
 import { DocModal } from "./DocModal";
@@ -9,6 +9,21 @@ export function Intro({ onDone }) {
   const [answers, setAnswers] = useState({});
   const [bubbles, setBubbles] = useState([]);
   const [showDoc, setShowDoc] = useState(false);
+  const [mouse, setMouse] = useState({ x: 0, y: 0 });
+  const rafRef = useRef(null);
+
+  const handleMouseMove = useCallback((e) => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      setMouse({
+        x: (e.clientX - cx) / cx,
+        y: (e.clientY - cy) / cy,
+      });
+    });
+  }, []);
 
   const pushBubble = (from, text) => setBubbles((prev) => [...prev, { from, text }]);
 
@@ -60,6 +75,7 @@ export function Intro({ onDone }) {
         padding: 24,
         overflow: "hidden",
       }}
+      onMouseMove={handleMouseMove}
     >
       {/* Keyframe injection for idle float animation */}
       <style>{`
@@ -75,11 +91,14 @@ export function Intro({ onDone }) {
               position: "absolute",
               left: `${tile.x}%`,
               top: `${tile.y}%`,
-              animation: `floatY ${tile.dur}s ease-in-out infinite`,
+              transform: `translate(${mouse.x * tile.depth}px, ${mouse.y * tile.depth}px)`,
+              transition: "transform 0.35s ease-out",
               opacity: 0.55,
             }}
           >
-            <MiniSlide tile={tile} />
+            <div style={{ animation: `floatY ${tile.dur}s ease-in-out infinite` }}>
+              <MiniSlide tile={tile} />
+            </div>
           </div>
         ))}
       </div>
