@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, Check, FileText, GitFork, Sparkles } from "lucide-react";
-import { INTRO_EXAMPLE, INTRO_STEPS, buildSummary } from "../data/intro";
+import { GALLERY_TILES, INTRO_EXAMPLE, INTRO_STEPS, buildSummary } from "../data/intro";
 import { DocModal } from "./DocModal";
 
 export function Intro({ onDone }) {
@@ -53,20 +53,49 @@ export function Intro({ onDone }) {
         position: "fixed",
         inset: 0,
         zIndex: 100,
-        background: "var(--color-background-secondary)",
+        background: "linear-gradient(135deg, #f0eefc 0%, #e8f5f0 50%, #eaf1fb 100%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: 24,
+        overflow: "hidden",
       }}
     >
+      {/* Keyframe injection for idle float animation */}
+      <style>{`
+        @keyframes floatY { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+      `}</style>
+
+      {/* Gallery background layer */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0 }}>
+        {GALLERY_TILES.map((tile) => (
+          <div
+            key={tile.id}
+            style={{
+              position: "absolute",
+              left: `${tile.x}%`,
+              top: `${tile.y}%`,
+              animation: `floatY ${tile.dur}s ease-in-out infinite`,
+              opacity: 0.55,
+            }}
+          >
+            <MiniSlide tile={tile} />
+          </div>
+        ))}
+      </div>
+
+      {/* Glass panel */}
       <div
         style={{
+          position: "relative",
+          zIndex: 1,
           width: "min(100%, 480px)",
-          background: "var(--color-background-primary)",
-          borderRadius: 12,
-          border: "0.5px solid var(--color-border-tertiary)",
-          boxShadow: "0 14px 40px rgba(26,25,21,0.08)",
+          background: "rgba(255,255,255,0.72)",
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
+          borderRadius: 14,
+          border: "0.5px solid rgba(255,255,255,0.9)",
+          boxShadow: "0 20px 60px rgba(26,25,21,0.14), 0 1px 0 rgba(255,255,255,0.8) inset",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
@@ -282,6 +311,31 @@ export function Intro({ onDone }) {
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniSlide({ tile }) {
+  return (
+    <div
+      style={{
+        width: 88,
+        background: "#fff",
+        borderRadius: 7,
+        boxShadow: "0 3px 12px rgba(26,25,21,0.10)",
+        overflow: "hidden",
+        border: "0.5px solid rgba(255,255,255,0.7)",
+      }}
+    >
+      <div style={{ height: 4, background: tile.c }} />
+      <div style={{ padding: "7px 8px 8px" }}>
+        <div style={{ fontSize: 8, fontWeight: 600, color: "#1a1915", marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {tile.title}
+        </div>
+        <div style={{ height: 3, borderRadius: 2, background: tile.bg, marginBottom: 3 }} />
+        <div style={{ height: 3, borderRadius: 2, background: tile.bg, width: "70%", marginBottom: 3 }} />
+        <div style={{ height: 3, borderRadius: 2, background: tile.bg, width: "85%" }} />
       </div>
     </div>
   );
