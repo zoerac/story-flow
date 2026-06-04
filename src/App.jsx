@@ -395,9 +395,9 @@ const S = {
     minWidth: 0,
     minHeight: 0,
     display: "grid",
-    gridTemplateRows: "minmax(0,1fr) auto",
-    gap: 10,
-    padding: 12,
+    gridTemplateRows: "minmax(0,1fr) minmax(92px, auto)",
+    gap: 8,
+    padding: 10,
     overflow: "hidden",
   },
   refineSection: {
@@ -535,7 +535,7 @@ const S = {
     flex: 1,
     minHeight: 0,
     overflow: "auto",
-    padding: 26,
+    padding: 14,
     display: "flex",
     justifyContent: "center",
     alignItems: "flex-start",
@@ -912,9 +912,10 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
 }
 
 function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBack }) {
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(1.08);
   const [activeId, setActiveId] = useState("title");
   const [rightTab, setRightTab] = useState("materials");
+  const [panelW, setPanelW] = useState(240);
   const [editNote, setEditNote] = useState("");
   const [gesture, setGesture] = useState(null);
   const [imageChoice, setImageChoice] = useState(REFINE_IMAGE_CANDIDATES[0]);
@@ -995,12 +996,26 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
       fontSize: Math.round((current.fontSize || defaultFontSize(activeId)) * scale),
     });
   };
+  const startPanelResize = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = panelW;
+    const onMove = (moveEvent) => {
+      setPanelW(Math.min(360, Math.max(200, startW - (moveEvent.clientX - startX))));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   return (
     <div
       style={{
         ...S.refineRoot,
-        gridTemplateColumns: `minmax(0,1fr) ${rightOpen ? "276px" : "0px"}`,
+        gridTemplateColumns: `minmax(0,1fr) ${rightOpen ? `4px ${panelW}px` : "0px 0px"}`,
       }}
     >
       <div style={S.refineWorkspace}>
@@ -1071,7 +1086,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
         </section>
 
         <section style={S.refineSection}>
-          <div style={{ padding: 12, display: "grid", gap: 8 }}>
+          <div style={{ padding: 8, display: "grid", gap: 6 }}>
             <span style={{ ...S.selectedMaterialBadge, borderColor: curSec?.bd, background: curSec?.bg, color: curSec?.c }}>
               {activeMaterial ? `当前素材：${activeMaterial.label}` : "点击画布素材进行编辑"}
             </span>
@@ -1082,12 +1097,15 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
                 setRightTab("proposals");
               }}
               placeholder="记录本页精修要求。当前版本只演示素材直接操作：拖动素材、编辑文字、替换图片、缩放文本框或图片。"
-              style={{ ...S.intentInput, minHeight: 76 }}
+              style={{ ...S.intentInput, minHeight: 48 }}
             />
           </div>
         </section>
       </div>
 
+      {rightOpen && (
+        <ResizeBar onMouseDown={startPanelResize} />
+      )}
       {rightOpen && (
         <div style={S.agentPanel}>
           <div style={S.agentHead}>
