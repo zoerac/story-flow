@@ -159,6 +159,7 @@ function App() {
                   setOverI={story.setOverI}
                   onDrop={story.onDrop}
                   onMergeSection={story.mergeSection}
+                  onSplitPage={story.splitPageOut}
                   commitVersion={commitStructureVersion}
                 />
               )}
