@@ -5,12 +5,19 @@ import { Intro } from "./components/Intro";
 import { StorylinePanel } from "./components/StorylinePanel";
 import { Toolbar } from "./components/Toolbar";
 import { VersionTree } from "./components/VersionTree";
+import {
+  VISUAL_AI_GENERATIONS,
+  VISUAL_CANVA_TEMPLATES,
+  VISUAL_INTENT_SUMMARY,
+  applyVisualToSections,
+  rankVisualCandidates,
+} from "./data/mock";
 import { useStoryflow } from "./hooks/useStoryflow";
 
 function App() {
   const story = useStoryflow();
   const [showIntro, setShowIntro] = useState(true);
-  const [view, setView] = useState("edit");
+  const [view, setView] = useState("intent");
   const [layout, setLayout] = useState({
     leftW: 220,
     rightW: 190,
@@ -57,14 +64,21 @@ function App() {
           rightOpen={layout.rightOpen}
           setLeftOpen={setLeftOpen}
           setRightOpen={setRightOpen}
-          activeStage={view === "refine" ? "refine" : "structure"}
+          activeStage={showIntro ? "intent" : view === "visual" ? "visual" : view === "refine" ? "refine" : "structure"}
           onOpenRefine={() => {
             setShowIntro(false);
             setView("refine");
           }}
         />
         {/* SLOT:intro */}
-        {showIntro && view === "edit" && <Intro onDone={() => setShowIntro(false)} />}
+        {showIntro && view === "intent" && (
+          <Intro
+            onDone={() => {
+              setShowIntro(false);
+              setView("visual");
+            }}
+          />
+        )}
         {view === "refine" ? (
           <AIRefinePage
             secs={story.secs}
@@ -78,6 +92,16 @@ function App() {
             commitVersion={story.commitVersion}
             addMsg={story.addMsg}
             onBack={() => setView("edit")}
+          />
+        ) : view === "visual" ? (
+          <VisualSelectionPage
+            onGenerate={(visual) => {
+              story.setSecs(applyVisualToSections(visual, story.secs));
+              story.setSel(0);
+              story.setSelPage(0);
+              story.addMsg("sys", `已选择主视觉「${visual.title}」，并生成结构编辑初稿。`);
+              setView("edit");
+            }}
           />
         ) : (
           <div
@@ -146,6 +170,135 @@ const S = {
     display: "grid",
     height: 580,
     background: "var(--color-background-primary)",
+  },
+  visualRoot: {
+    height: 640,
+    display: "flex",
+    flexDirection: "column",
+    minHeight: 0,
+    background: "var(--color-background-tertiary)",
+  },
+  visualHeader: {
+    padding: "14px 16px",
+    background: "var(--color-background-primary)",
+    borderBottom: "0.5px solid var(--color-border-tertiary)",
+    display: "grid",
+    gridTemplateColumns: "minmax(0,1fr) 260px",
+    gap: 12,
+    alignItems: "stretch",
+    flexShrink: 0,
+  },
+  visualInput: {
+    width: "100%",
+    minHeight: 78,
+    resize: "none",
+    borderRadius: 8,
+    border: "1px solid var(--color-border-tertiary)",
+    background: "var(--color-background-secondary)",
+    color: "var(--color-text-primary)",
+    padding: "9px 10px",
+    fontSize: 12,
+    lineHeight: 1.55,
+    outline: "none",
+  },
+  visualControls: {
+    display: "grid",
+    gap: 10,
+    alignContent: "space-between",
+  },
+  visualMode: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr",
+    gap: 4,
+    padding: 4,
+    borderRadius: 8,
+    border: "1px solid var(--color-border-tertiary)",
+    background: "var(--color-background-secondary)",
+  },
+  visualModeBtn: {
+    height: 30,
+    border: 0,
+    borderRadius: 6,
+    fontSize: 11,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  generateBtn: {
+    height: 34,
+    border: 0,
+    borderRadius: 7,
+    background: "#7F77DD",
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: 650,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    cursor: "pointer",
+  },
+  galleryScroll: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    padding: 14,
+  },
+  sourceColumns: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)",
+    gap: 14,
+    minWidth: 0,
+  },
+  sourceHead: {
+    height: 26,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    fontSize: 12,
+    fontWeight: 650,
+    color: "var(--color-text-primary)",
+  },
+  visualGridTwo: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+    gap: 10,
+  },
+  visualGridFour: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+    gap: 10,
+  },
+  visualCard: {
+    borderRadius: 8,
+    border: "1px solid var(--color-border-tertiary)",
+    background: "var(--color-background-primary)",
+    padding: 8,
+    display: "grid",
+    gap: 7,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  visualThumb: {
+    aspectRatio: "16/10",
+    borderRadius: 6,
+    overflow: "hidden",
+    border: "1px solid var(--color-border-tertiary)",
+    background: "var(--color-background-secondary)",
+  },
+  visualTags: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  visualTag: {
+    minHeight: 18,
+    borderRadius: 5,
+    padding: "0 6px",
+    display: "flex",
+    alignItems: "center",
+    fontSize: 9,
+    color: "var(--color-text-tertiary)",
+    background: "var(--color-background-secondary)",
   },
   col: {
     display: "flex",
@@ -435,6 +588,118 @@ const S = {
     cursor: "pointer",
   },
 };
+
+function VisualSelectionPage({ onGenerate }) {
+  const [intent, setIntent] = useState(VISUAL_INTENT_SUMMARY);
+  const [mode, setMode] = useState("all");
+  const rankedCanva = rankVisualCandidates(VISUAL_CANVA_TEMPLATES, intent);
+  const rankedAi = rankVisualCandidates(VISUAL_AI_GENERATIONS, intent);
+  const [selectedId, setSelectedId] = useState(rankedCanva[0]?.id);
+  const selected = [...rankedCanva, ...rankedAi].find((item) => item.id === selectedId) || rankedCanva[0] || rankedAi[0];
+
+  return (
+    <div style={S.visualRoot}>
+      <div style={S.visualHeader}>
+        <textarea
+          value={intent}
+          onChange={(e) => setIntent(e.target.value)}
+          style={S.visualInput}
+          placeholder="输入主视觉偏好，例如：更像高管汇报、强调数据对比、保留 AI 工作流概念感。"
+        />
+        <div style={S.visualControls}>
+          <div style={S.visualMode}>
+            {[
+              ["all", "都看"],
+              ["canva", "Canva"],
+              ["ai", "AI生成"],
+            ].map(([id, label]) => {
+              const active = mode === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMode(id)}
+                  style={{
+                    ...S.visualModeBtn,
+                    background: active ? "#EEEDFE" : "transparent",
+                    color: active ? "#3C3489" : "var(--color-text-secondary)",
+                    fontWeight: active ? 650 : 500,
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <button type="button" onClick={() => selected && onGenerate(selected)} style={S.generateBtn}>
+            <Sparkles size={14} /> 生成故事线与 PPT
+          </button>
+        </div>
+      </div>
+      <div style={S.galleryScroll}>
+        {mode === "all" ? (
+          <div style={S.sourceColumns}>
+            <VisualSourceColumn title="Canva 模板" items={rankedCanva} selectedId={selectedId} onSelect={setSelectedId} />
+            <VisualSourceColumn title="AI 生成" items={rankedAi} selectedId={selectedId} onSelect={setSelectedId} />
+          </div>
+        ) : (
+          <div>
+            <div style={S.sourceHead}>{mode === "canva" ? "Canva 模板" : "AI 生成"}</div>
+            <div style={S.visualGridFour}>
+              {(mode === "canva" ? rankedCanva : rankedAi).map((item) => (
+                <VisualCandidateCard key={item.id} item={item} active={item.id === selectedId} onSelect={() => setSelectedId(item.id)} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VisualSourceColumn({ title, items, selectedId, onSelect }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={S.sourceHead}>
+        <span>{title}</span>
+        <span style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-tertiary)" }}>{items.length} 个候选</span>
+      </div>
+      <div style={S.visualGridTwo}>
+        {items.map((item) => (
+          <VisualCandidateCard key={item.id} item={item} active={item.id === selectedId} onSelect={() => onSelect(item.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VisualCandidateCard({ item, active, onSelect }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      style={{
+        ...S.visualCard,
+        borderColor: active ? item.bd : "var(--color-border-tertiary)",
+        background: active ? item.bg : "var(--color-background-primary)",
+        boxShadow: active ? `0 0 0 1px ${item.bd}` : "none",
+      }}
+    >
+      <div style={S.visualThumb}>
+        <img src={item.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      </div>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 650, color: active ? item.c : "var(--color-text-primary)", lineHeight: 1.3 }}>{item.title}</div>
+        <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", lineHeight: 1.45, marginTop: 2 }}>{item.style}</div>
+      </div>
+      <div style={S.visualTags}>
+        {item.tags.slice(0, 3).map((tag) => (
+          <span key={tag} style={S.visualTag}>{tag}</span>
+        ))}
+      </div>
+    </button>
+  );
+}
 
 function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
   const curSec = secs[sel];
