@@ -4,8 +4,9 @@ export function Toolbar({ leftOpen, rightOpen, setLeftOpen, setRightOpen, active
   const focused = !leftOpen && !rightOpen;
   const stages = [
     { id: "intent", label: "1 意图对齐" },
-    { id: "structure", label: "2 结构编辑" },
-    { id: "refine", label: "3 AI精修" },
+    { id: "visual", label: "2 主视觉" },
+    { id: "structure", label: "3 结构编辑" },
+    { id: "refine", label: "4 AI精修" },
   ];
 
   return (
