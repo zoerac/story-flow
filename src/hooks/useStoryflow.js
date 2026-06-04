@@ -16,6 +16,8 @@ export function useStoryflow() {
     },
   ]);
   const [curV, setCurV] = useState("v0");
+  // 主视觉选择阶段用户选中的模板，跨阶段复用到结构预览与 AI 精修
+  const [visual, setVisual] = useState(null);
   const [sel, setSel] = useState(0);
   const [selPage, setSelPage] = useState(0);
   const [dragI, setDragI] = useState(null);
@@ -274,6 +276,8 @@ export function useStoryflow() {
     setSecs,
     vers,
     curV,
+    visual,
+    setVisual,
     sel,
     setSel,
     selPage,
