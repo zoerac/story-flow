@@ -115,15 +115,29 @@ export function ChatPanel({ msgs, send, thinking, chatEnd, dragI, focusedSection
           <div style={{ display: "flex", marginBottom: 6 }}>
             <div
               style={{
-                padding: "7px 11px",
+                padding: "9px 14px",
                 borderRadius: 10,
                 borderBottomLeftRadius: 3,
                 background: "#E1F5EE",
-                color: "#085041",
-                fontSize: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
               }}
             >
-              思考中...
+              {[0, 0.15, 0.3].map((delay) => (
+                <span
+                  key={delay}
+                  className="anim-blink"
+                  style={{
+                    display: "block",
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "#1D9E75",
+                    animationDelay: `${delay}s`,
+                  }}
+                />
+              ))}
             </div>
           </div>
         )}

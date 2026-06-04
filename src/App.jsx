@@ -29,6 +29,7 @@ function App() {
   const story = useStoryflow();
   const [showIntro, setShowIntro] = useState(true);
   const [view, setView] = useState("intent");
+  const [transitioning, setTransitioning] = useState(false);
   const [layout, setLayout] = useState({
     leftW: 220,
     rightW: 190,
@@ -39,6 +40,8 @@ function App() {
   const currentStage = showIntro ? "intent" : view === "visual" ? "visual" : view === "refine" ? "refine" : "structure";
 
   const setStageView = (stage) => {
+    setTransitioning(true);
+    setTimeout(() => setTransitioning(false), 700);
     setShowIntro(stage === "intent");
     setView(stage === "intent" ? "intent" : stage === "structure" ? "edit" : stage);
   };
@@ -111,6 +114,7 @@ function App() {
           onStageJump={handleStageJump}
           onOpenRefine={() => handleStageJump("refine")}
         />
+        <ThinkingBar visible={transitioning} />
         {/* SLOT:intro */}
         {showIntro && view === "intent" && (
           <Intro
@@ -118,36 +122,42 @@ function App() {
           />
         )}
         {view === "refine" ? (
-          <AIRefinePage
-            secs={story.secs}
-            sel={story.sel}
-            selPage={story.selPage}
-            rightOpen={layout.rightOpen}
-            vers={story.vers}
-            curV={story.curV}
-            restore={handleRestore}
-            commitVersion={commitRefineVersion}
-            addMsg={story.addMsg}
-            onBack={() => handleStageJump("structure")}
-          />
+          <div key="refine" className="anim-fade-up">
+            <AIRefinePage
+              secs={story.secs}
+              sel={story.sel}
+              selPage={story.selPage}
+              rightOpen={layout.rightOpen}
+              vers={story.vers}
+              curV={story.curV}
+              restore={handleRestore}
+              commitVersion={commitRefineVersion}
+              addMsg={story.addMsg}
+              onBack={() => handleStageJump("structure")}
+            />
+          </div>
         ) : view === "visual" ? (
-          <VisualSelectionPage
-            onGenerate={(visual) => {
-              const nextSecs = applyVisualToSections(visual, story.secs);
-              story.commitVersion(`主视觉：${visual.title}`, nextSecs, {
-                stage: "structure",
-                kind: "edit",
-                fromStage: "visual",
-                toStage: "structure",
-              });
-              story.setSel(0);
-              story.setSelPage(0);
-              story.addMsg("sys", `已选择主视觉「${visual.title}」，并生成结构编辑初稿。`);
-              setStageView("structure");
-            }}
-          />
+          <div key="visual" className="anim-fade-up">
+            <VisualSelectionPage
+              onGenerate={(visual) => {
+                const nextSecs = applyVisualToSections(visual, story.secs);
+                story.commitVersion(`主视觉：${visual.title}`, nextSecs, {
+                  stage: "structure",
+                  kind: "edit",
+                  fromStage: "visual",
+                  toStage: "structure",
+                });
+                story.setSel(0);
+                story.setSelPage(0);
+                story.addMsg("sys", `已选择主视觉「${visual.title}」，并生成结构编辑初稿。`);
+                setStageView("structure");
+              }}
+            />
+          </div>
         ) : (
           <div
+            key="structure"
+            className="anim-fade-up"
             style={{
               ...S.root,
               gridTemplateColumns: `${layout.leftOpen ? layout.leftW : 0}px ${layout.leftOpen ? 4 : 0}px minmax(0,1fr) ${layout.rightOpen ? 4 : 0}px ${layout.rightOpen ? layout.rightW : 0}px`,
@@ -779,8 +789,8 @@ function VisualSelectionPage({ onGenerate }) {
           <div>
             <div style={S.sourceHead}>{mode === "canva" ? "Canva 模板" : "AI 生成"}</div>
             <div style={S.visualGridFour}>
-              {(mode === "canva" ? rankedCanva : rankedAi).map((item) => (
-                <VisualCandidateCard key={item.id} item={item} active={item.id === selectedId} onSelect={() => setSelectedId(item.id)} />
+              {(mode === "canva" ? rankedCanva : rankedAi).map((item, i) => (
+                <VisualCandidateCard key={item.id} item={item} active={item.id === selectedId} onSelect={() => setSelectedId(item.id)} index={i} />
               ))}
             </div>
           </div>
@@ -798,20 +808,22 @@ function VisualSourceColumn({ title, items, selectedId, onSelect }) {
         <span style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-tertiary)" }}>{items.length} 个候选</span>
       </div>
       <div style={S.visualGridTwo}>
-        {items.map((item) => (
-          <VisualCandidateCard key={item.id} item={item} active={item.id === selectedId} onSelect={() => onSelect(item.id)} />
+        {items.map((item, i) => (
+          <VisualCandidateCard key={item.id} item={item} active={item.id === selectedId} onSelect={() => onSelect(item.id)} index={i} />
         ))}
       </div>
     </div>
   );
 }
 
-function VisualCandidateCard({ item, active, onSelect }) {
+function VisualCandidateCard({ item, active, onSelect, index = 0 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
+      className="anim-fade-up"
       style={{
+        animationDelay: `${Math.min(index * 40, 240)}ms`,
         ...S.visualCard,
         borderColor: active ? item.bd : "var(--color-border-tertiary)",
         background: active ? item.bg : "var(--color-background-primary)",
@@ -1125,7 +1137,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, comm
 
 function RefineProposalCard({ proposal, curSec, onApprove }) {
   return (
-    <div style={S.proposalCard}>
+    <div className="anim-fade-up" style={{ animationDelay: `${(proposal.index - 1) * 80}ms`, ...S.proposalCard }}>
       <div style={{ ...S.proposalImage, borderColor: proposal.border, background: proposal.bg }}>
         <div>
           <div style={{ width: 34, height: 4, borderRadius: 2, background: proposal.accent, marginBottom: 8 }} />
@@ -1255,6 +1267,15 @@ function regionLabel(region) {
   if (region === "body") return "正文区域";
   if (region === "visual") return "图片/图表区域";
   return "未选择";
+}
+
+function ThinkingBar({ visible }) {
+  if (!visible) return null;
+  return (
+    <div style={{ position: "relative", height: 2, overflow: "hidden", background: "var(--color-border-tertiary)", flexShrink: 0 }}>
+      <div className="anim-progress-bar" />
+    </div>
+  );
 }
 
 function ResizeBar({ hidden, onMouseDown }) {
