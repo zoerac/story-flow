@@ -163,6 +163,19 @@ export function useStoryflow() {
     addMsg("ai", summary, { label: "撤销拆分", undoTo });
   };
 
+  // 用意图对齐阶段约定好的故事线作为编辑器种子：重置工作态与版本树根节点 v0
+  const seedStoryline = (sections) => {
+    if (!sections?.length) return;
+    setSecs(cloneSections(sections));
+    setVers([
+      { id: "v0", label: "初始生成", snap: cloneSections(sections), par: null, ch: [], stage: "intent", kind: "init" },
+    ]);
+    setCurV("v0");
+    vc.current = 1;
+    setSel(0);
+    setSelPage(0);
+  };
+
   const restore = (vid) => {
     const v = vers.find((x) => x.id === vid);
     if (!v) return;
@@ -274,6 +287,7 @@ export function useStoryflow() {
     mergeSection,
     splitPageOut,
     restore,
+    seedStoryline,
     saveVersion,
     toggleSaved,
     deleteVersion,

@@ -12,6 +12,14 @@ export const GALLERY_TILES = [
   { id: "t9", title: "框选提案",   sub: "局部精修",         c: "#378ADD", bg: "#E6F1FB", x: 88, y: 18, depth: 24, dur: 8.7 },
 ];
 
+// 意图对齐精修阶段，AI 每轮给出的澄清建议（点击即作为用户消息发送）。
+// 每条 chip 的文案都对应 introEngine 的结构变换规则，确保「点击 → 右侧故事线可见变化」。
+export const INTRO_REFINE_SUGGESTIONS = [
+  ["把结论放到最前面", "开头更短一些", "多花一页讲市场规模"],
+  ["补一页竞品对比", "加一页关键数据对比", "增加一页技术架构"],
+  ["调性更热情有感染力", "调性更简洁高效", "更突出商业价值"],
+];
+
 export const INTRO_STEPS = [
   {
     id: "audience",

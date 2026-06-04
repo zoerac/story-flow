@@ -1,14 +1,29 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, FileText, Sparkles } from "lucide-react";
-import { INTRO_EXAMPLE, INTRO_STEPS, buildSummary } from "../data/intro";
+import { INTRO_EXAMPLE, INTRO_STEPS } from "../data/intro";
+import { buildInitialDraft, refineDraft } from "../lib/introEngine";
+import { IntroStoryline } from "./IntroStoryline";
 import { DocModal } from "./DocModal";
 
 export function Intro({ onDone }) {
-  const [phase, setPhase] = useState("need"); // need | audience | tone | summary
+  const [phase, setPhase] = useState("need"); // need | audience | tone | refine
   const [need, setNeed] = useState("");
   const [answers, setAnswers] = useState({});
   const [bubbles, setBubbles] = useState([]);
   const [showDoc, setShowDoc] = useState(false);
+
+  // 精修阶段状态
+  const [draft, setDraft] = useState(null);
+  const [draftId, setDraftId] = useState("default");
+  const [refineChips, setRefineChips] = useState([]);
+  const [accumulated, setAccumulated] = useState("");
+  const [refineInput, setRefineInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+
+  const chatEndRef = useRef(null);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [bubbles, thinking]);
 
   const pushBubble = (from, text) => setBubbles((prev) => [...prev, { from, text }]);
 
@@ -22,10 +37,26 @@ export function Intro({ onDone }) {
     }, 300);
   };
 
+  // 生成初版故事线方案，进入精修阶段
+  const startRefine = (merged) => {
+    const { sections, draftId: id, summary, chips } = buildInitialDraft({
+      need: need.trim() || INTRO_EXAMPLE,
+      audience: merged.audience,
+      tone: merged.tone,
+    });
+    setDraft(sections);
+    setDraftId(id);
+    setRefineChips(chips);
+    setAccumulated([need.trim() || INTRO_EXAMPLE, merged.audience, merged.tone].filter(Boolean).join(" "));
+    setPhase("refine");
+    setTimeout(() => pushBubble("ai", summary), 300);
+  };
+
   const pickChip = (stepIdx, chip) => {
     const step = INTRO_STEPS[stepIdx];
+    const merged = { ...answers, [step.id]: chip };
     pushBubble("user", chip);
-    setAnswers((prev) => ({ ...prev, [step.id]: chip }));
+    setAnswers(merged);
 
     const nextIdx = stepIdx + 1;
     if (nextIdx < INTRO_STEPS.length) {
@@ -35,17 +66,36 @@ export function Intro({ onDone }) {
       }, 300);
     } else {
       setTimeout(() => {
-        pushBubble("ai", "明白了，帮你整理一下意图摘要——");
-        setPhase("summary");
+        pushBubble("ai", "明白了，我先生成一版故事线方案——");
+        startRefine(merged);
       }, 300);
     }
   };
 
-  const summary = phase === "summary"
-    ? buildSummary({ need: need.trim() || INTRO_EXAMPLE, ...answers })
-    : null;
+  // 单轮精修：应用用户澄清，实时改写右侧故事线
+  const sendRefine = (raw) => {
+    const val = (raw ?? "").trim();
+    if (!val || thinking) return;
+    pushBubble("user", val);
+    setRefineInput("");
+    setThinking(true);
+    setTimeout(() => {
+      const { sections, draftId: id, summary, chips } = refineDraft(draft, val, {
+        accumulatedText: accumulated,
+        draftId,
+        lastChips: refineChips,
+      });
+      setDraft(sections);
+      setDraftId(id);
+      setRefineChips(chips);
+      setAccumulated((prev) => `${prev} ${val}`);
+      setThinking(false);
+      pushBubble("ai", summary);
+    }, 500 + Math.random() * 400);
+  };
 
   const currentStepIdx = INTRO_STEPS.findIndex((s) => s.id === phase);
+  const isRefine = phase === "refine";
 
   return (
     <div
@@ -61,45 +111,49 @@ export function Intro({ onDone }) {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 34,
-        padding: "48px 20px 28px",
-        overflow: "hidden",
+        gap: isRefine ? 18 : 34,
+        padding: "40px 20px 28px",
+        overflow: "auto",
       }}
     >
       {showDoc && <DocModal onClose={() => setShowDoc(false)} />}
 
-      <div style={{ textAlign: "center", width: "min(calc(100vw - 40px), 760px)", flexShrink: 0, boxSizing: "border-box" }}>
+      {/* 标题区：精修阶段收窄，给双栏留出空间 */}
+      <div style={{ textAlign: "center", width: "min(calc(100vw - 40px), 980px)", flexShrink: 0, boxSizing: "border-box" }}>
         <h1
           style={{
             margin: 0,
-            fontSize: "clamp(48px, 8vw, 86px)",
+            fontSize: isRefine ? "clamp(26px, 4vw, 38px)" : "clamp(48px, 8vw, 86px)",
             lineHeight: 1,
             fontWeight: 720,
             color: "var(--color-text-primary)",
+            transition: "font-size 0.4s ease",
           }}
         >
-          StoryFlow
+          StoryFlow{isRefine && <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-tertiary)", marginLeft: 10 }}>· 意图对齐</span>}
         </h1>
-        <p
-          style={{
-            margin: "16px 0 0",
-            maxWidth: 620,
-            marginLeft: "auto",
-            marginRight: "auto",
-            fontSize: 15,
-            lineHeight: 1.7,
-            color: "var(--color-text-secondary)",
-            overflowWrap: "anywhere",
-          }}
-        >
-          用一轮对话对齐演示意图，再把结构、版本与局部精修交给 AI 持续协作。
-        </p>
+        {!isRefine && (
+          <p
+            style={{
+              margin: "16px 0 0",
+              maxWidth: 620,
+              marginLeft: "auto",
+              marginRight: "auto",
+              fontSize: 15,
+              lineHeight: 1.7,
+              color: "var(--color-text-secondary)",
+              overflowWrap: "anywhere",
+            }}
+          >
+            用一轮对话对齐演示意图，再把结构、版本与局部精修交给 AI 持续协作。
+          </p>
+        )}
         <button
           type="button"
           onClick={() => setShowDoc(true)}
           style={{
             height: 28,
-            marginTop: 14,
+            marginTop: isRefine ? 8 : 14,
             display: "inline-flex",
             alignItems: "center",
             gap: 5,
@@ -117,206 +171,132 @@ export function Intro({ onDone }) {
         </button>
       </div>
 
-      <div
-        style={{
-          position: "relative",
-          width: "min(calc(100vw - 40px), 520px)",
-          minHeight: 0,
-          maxHeight: "min(54vh, 430px)",
-          boxSizing: "border-box",
-          display: "flex",
-          flexDirection: "column",
-          borderRadius: 12,
-          border: "0.5px solid var(--color-border-tertiary)",
-          background: "var(--color-background-primary)",
-          boxShadow: "0 18px 52px rgba(26,25,21,0.12)",
-          overflow: "visible",
-        }}
-      >
-        {currentStepIdx >= 0 && (
+      {isRefine ? (
+        /* —— 精修阶段：左对话 + 右故事线预览 —— */
+        <div
+          style={{
+            width: "min(calc(100vw - 40px), 980px)",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 16,
+            boxSizing: "border-box",
+          }}
+        >
+          {/* 左栏：对话 */}
           <div
-            className="anim-pop"
             style={{
-              position: "absolute",
-              left: 14,
-              right: 14,
-              bottom: "calc(100% + 10px)",
-              borderRadius: 10,
-              border: "0.5px solid #CECBF6",
-              background: "#FAFAFF",
-              boxShadow: "0 12px 32px rgba(26,25,21,0.12)",
-              padding: 10,
-              display: "grid",
-              gap: 8,
+              flex: "1 1 380px",
+              minWidth: 300,
+              maxHeight: "min(64vh, 520px)",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 12,
+              border: "0.5px solid var(--color-border-tertiary)",
+              background: "var(--color-background-primary)",
+              boxShadow: "0 18px 52px rgba(26,25,21,0.12)",
+              overflow: "hidden",
             }}
           >
-            <div style={{ fontSize: 11, fontWeight: 650, color: "#3C3489" }}>
-              {INTRO_STEPS[currentStepIdx].question}
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <AiBubble>
+                <Sparkles size={10} style={{ marginRight: 4, verticalAlign: -1 }} />
+                你好！先告诉我这次演示的需求，我会帮你梳理故事线结构。
+              </AiBubble>
+              {bubbles.map((b, i) => (
+                b.from === "user"
+                  ? <UserBubble key={i}>{b.text}</UserBubble>
+                  : <AiBubble key={i}><Sparkles size={10} style={{ marginRight: 4, verticalAlign: -1 }} />{b.text}</AiBubble>
+              ))}
+              {thinking && (
+                <div className="anim-fade-up" style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <div style={{ padding: "9px 12px", borderRadius: 10, borderBottomLeftRadius: 3, background: "#E1F5EE", display: "flex", gap: 4 }}>
+                    {[0, 1, 2].map((d) => (
+                      <span key={d} className="anim-blink" style={{ animationDelay: `${d * 160}ms`, width: 5, height: 5, borderRadius: "50%", background: "#1D9E75" }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {INTRO_STEPS[currentStepIdx].chips.map((chip, i) => (
+
+            {/* AI 建议 chips */}
+            <div style={{ padding: "8px 14px 0", display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0 }}>
+              {refineChips.map((chip, i) => (
                 <button
                   key={chip}
                   type="button"
-                  onClick={() => pickChip(currentStepIdx, chip)}
+                  disabled={thinking}
+                  onClick={() => sendRefine(chip)}
                   className="anim-fade-up"
                   style={{
                     animationDelay: `${i * 40}ms`,
-                    minHeight: 30,
+                    minHeight: 28,
                     fontSize: 11,
                     color: "var(--color-text-secondary)",
                     background: "var(--color-background-primary)",
                     border: "0.5px solid var(--color-border-secondary)",
                     borderRadius: 8,
                     padding: "0 10px",
-                    cursor: "pointer",
+                    cursor: thinking ? "default" : "pointer",
+                    opacity: thinking ? 0.5 : 1,
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "#EEEDFE"; e.currentTarget.style.borderColor = "#CECBF6"; e.currentTarget.style.color = "#3C3489"; }}
+                  onMouseEnter={(e) => { if (thinking) return; e.currentTarget.style.background = "#EEEDFE"; e.currentTarget.style.borderColor = "#CECBF6"; e.currentTarget.style.color = "#3C3489"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-background-primary)"; e.currentTarget.style.borderColor = "var(--color-border-secondary)"; e.currentTarget.style.color = "var(--color-text-secondary)"; }}
                 >
                   {chip}
                 </button>
               ))}
             </div>
-          </div>
-        )}
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
-          <AiBubble>
-            <Sparkles size={10} style={{ marginRight: 4, verticalAlign: -1 }} />
-            你好！先告诉我这次演示的需求，我会帮你梳理故事线结构。
-          </AiBubble>
-
-          {bubbles.map((b, i) => (
-            b.from === "user"
-              ? <UserBubble key={i}>{b.text}</UserBubble>
-              : <AiBubble key={i}><Sparkles size={10} style={{ marginRight: 4, verticalAlign: -1 }} />{b.text}</AiBubble>
-          ))}
-
-          {/* Summary card */}
-          {summary && (
-            <div
-              className="anim-scale"
-              style={{
-                background: "#FAFAFE",
-                border: "0.5px solid #CECBF6",
-                borderRadius: 10,
-                padding: "12px 14px",
-                fontSize: 12,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#3C3489", fontWeight: 600, fontSize: 11 }}>
-                <Check size={12} /> 意图摘要
+            {/* 自由输入 + 进入编辑 */}
+            <div style={{ padding: "10px 14px", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ position: "relative", width: "100%", overflow: "hidden" }}>
+                <input
+                  value={refineInput}
+                  onChange={(e) => setRefineInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && sendRefine(refineInput)}
+                  placeholder="还想怎么调整？也可以直接描述..."
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    fontSize: 12,
+                    padding: "7px 44px 7px 10px",
+                    borderRadius: 8,
+                    border: "0.5px solid var(--color-border-tertiary)",
+                    background: "var(--color-background-secondary)",
+                    color: "var(--color-text-primary)",
+                    outline: "none",
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = "#CECBF6"; }}
+                  onBlur={(e) => { e.target.style.borderColor = "var(--color-border-tertiary)"; }}
+                />
+                <button
+                  type="button"
+                  onClick={() => sendRefine(refineInput)}
+                  style={{
+                    width: 32,
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    border: "none",
+                    background: "#7F77DD",
+                    color: "#fff",
+                    cursor: refineInput.trim() ? "pointer" : "default",
+                    opacity: refineInput.trim() ? 1 : 0.5,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 8,
+                  }}
+                  aria-label="发送"
+                >
+                  <ArrowRight size={12} />
+                </button>
               </div>
-              {[
-                { label: "目标", value: summary.goal },
-                { label: "听众", value: summary.audience },
-                { label: "核心论点", value: summary.thesis },
-                { label: "调性节奏", value: summary.tone },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <div style={{ fontSize: 9, color: "var(--color-text-tertiary)", fontWeight: 600, textTransform: "uppercase", marginBottom: 2 }}>
-                    {label}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--color-text-primary)", lineHeight: 1.5 }}>{value}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {(phase === "need" || phase === "summary") && (
-          <div
-            style={{
-              padding: "10px 14px",
-              borderTop: "0.5px solid var(--color-border-tertiary)",
-              flexShrink: 0,
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
-            {phase === "need" && (
-              <>
-                <div style={{ position: "relative", width: "100%", maxWidth: "100%", overflow: "hidden" }}>
-                  <input
-                    autoFocus
-                    value={need}
-                    onChange={(e) => setNeed(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && submitNeed()}
-                    placeholder="描述你要做的演示..."
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      width: "100%",
-                      boxSizing: "border-box",
-                      fontSize: 12,
-                      padding: "7px 48px 7px 10px",
-                      borderRadius: 8,
-                      border: "0.5px solid var(--color-border-tertiary)",
-                      background: "var(--color-background-secondary)",
-                      color: "var(--color-text-primary)",
-                      outline: "none",
-                    }}
-                    onFocus={(e) => { e.target.style.borderColor = "#CECBF6"; }}
-                    onBlur={(e) => { e.target.style.borderColor = "var(--color-border-tertiary)"; }}
-                  />
-                  <button
-                    type="button"
-                    onClick={submitNeed}
-                    style={{
-                      width: 36,
-                      position: "absolute",
-                      top: 0,
-                      right: 0,
-                      bottom: 0,
-                      padding: 0,
-                      fontSize: 12,
-                      borderRadius: 8,
-                      border: "none",
-                      background: "#7F77DD",
-                      color: "#fff",
-                      cursor: need.trim() ? "pointer" : "default",
-                      opacity: need.trim() ? 1 : 0.5,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 4,
-                      whiteSpace: "nowrap",
-                    }}
-                    aria-label="继续"
-                  >
-                    <ArrowRight size={12} />
-                  </button>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 10, color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>示例：</span>
-                  <button
-                    type="button"
-                    onClick={() => setNeed(INTRO_EXAMPLE)}
-                    style={{
-                      fontSize: 10,
-                      color: "#7F77DD",
-                      background: "#EEEDFE",
-                      border: "0.5px solid #CECBF6",
-                      borderRadius: 20,
-                      padding: "3px 10px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {INTRO_EXAMPLE}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {phase === "summary" && (
               <button
                 type="button"
-                onClick={onDone}
+                onClick={() => onDone(draft)}
                 style={{
                   width: "100%",
                   padding: "10px",
@@ -333,12 +313,195 @@ export function Intro({ onDone }) {
                   gap: 6,
                 }}
               >
-                进入编辑 <ArrowRight size={14} />
+                <Check size={14} /> 满意，进入编辑 <ArrowRight size={14} />
               </button>
-            )}
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* 右栏：故事线预览 */}
+          <div
+            style={{
+              flex: "1 1 360px",
+              minWidth: 280,
+              maxHeight: "min(64vh, 520px)",
+              boxSizing: "border-box",
+              borderRadius: 12,
+              border: "0.5px solid var(--color-border-tertiary)",
+              background: "var(--color-background-primary)",
+              boxShadow: "0 18px 52px rgba(26,25,21,0.12)",
+              padding: "14px 14px 12px",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            {draft && <IntroStoryline sections={draft} />}
+          </div>
+        </div>
+      ) : (
+        /* —— 采集阶段：单卡对话 + 弹出选项 —— */
+        <div
+          style={{
+            position: "relative",
+            width: "min(calc(100vw - 40px), 520px)",
+            minHeight: 0,
+            maxHeight: "min(54vh, 430px)",
+            boxSizing: "border-box",
+            display: "flex",
+            flexDirection: "column",
+            borderRadius: 12,
+            border: "0.5px solid var(--color-border-tertiary)",
+            background: "var(--color-background-primary)",
+            boxShadow: "0 18px 52px rgba(26,25,21,0.12)",
+            overflow: "visible",
+          }}
+        >
+          {currentStepIdx >= 0 && (
+            <div
+              className="anim-pop"
+              style={{
+                position: "absolute",
+                left: 14,
+                right: 14,
+                bottom: "calc(100% + 10px)",
+                borderRadius: 10,
+                border: "0.5px solid #CECBF6",
+                background: "#FAFAFF",
+                boxShadow: "0 12px 32px rgba(26,25,21,0.12)",
+                padding: 10,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 650, color: "#3C3489" }}>
+                {INTRO_STEPS[currentStepIdx].question}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {INTRO_STEPS[currentStepIdx].chips.map((chip, i) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => pickChip(currentStepIdx, chip)}
+                    className="anim-fade-up"
+                    style={{
+                      animationDelay: `${i * 40}ms`,
+                      minHeight: 30,
+                      fontSize: 11,
+                      color: "var(--color-text-secondary)",
+                      background: "var(--color-background-primary)",
+                      border: "0.5px solid var(--color-border-secondary)",
+                      borderRadius: 8,
+                      padding: "0 10px",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#EEEDFE"; e.currentTarget.style.borderColor = "#CECBF6"; e.currentTarget.style.color = "#3C3489"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-background-primary)"; e.currentTarget.style.borderColor = "var(--color-border-secondary)"; e.currentTarget.style.color = "var(--color-text-secondary)"; }}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <AiBubble>
+              <Sparkles size={10} style={{ marginRight: 4, verticalAlign: -1 }} />
+              你好！先告诉我这次演示的需求，我会帮你梳理故事线结构。
+            </AiBubble>
+
+            {bubbles.map((b, i) => (
+              b.from === "user"
+                ? <UserBubble key={i}>{b.text}</UserBubble>
+                : <AiBubble key={i}><Sparkles size={10} style={{ marginRight: 4, verticalAlign: -1 }} />{b.text}</AiBubble>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+
+          {phase === "need" && (
+            <div
+              style={{
+                padding: "10px 14px",
+                borderTop: "0.5px solid var(--color-border-tertiary)",
+                flexShrink: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <div style={{ position: "relative", width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+                <input
+                  autoFocus
+                  value={need}
+                  onChange={(e) => setNeed(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && submitNeed()}
+                  placeholder="描述你要做的演示..."
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    width: "100%",
+                    boxSizing: "border-box",
+                    fontSize: 12,
+                    padding: "7px 48px 7px 10px",
+                    borderRadius: 8,
+                    border: "0.5px solid var(--color-border-tertiary)",
+                    background: "var(--color-background-secondary)",
+                    color: "var(--color-text-primary)",
+                    outline: "none",
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = "#CECBF6"; }}
+                  onBlur={(e) => { e.target.style.borderColor = "var(--color-border-tertiary)"; }}
+                />
+                <button
+                  type="button"
+                  onClick={submitNeed}
+                  style={{
+                    width: 36,
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    padding: 0,
+                    fontSize: 12,
+                    borderRadius: 8,
+                    border: "none",
+                    background: "#7F77DD",
+                    color: "#fff",
+                    cursor: need.trim() ? "pointer" : "default",
+                    opacity: need.trim() ? 1 : 0.5,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                    whiteSpace: "nowrap",
+                  }}
+                  aria-label="继续"
+                >
+                  <ArrowRight size={12} />
+                </button>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 10, color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>示例：</span>
+                <button
+                  type="button"
+                  onClick={() => setNeed(INTRO_EXAMPLE)}
+                  style={{
+                    fontSize: 10,
+                    color: "#7F77DD",
+                    background: "#EEEDFE",
+                    border: "0.5px solid #CECBF6",
+                    borderRadius: 20,
+                    padding: "3px 10px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {INTRO_EXAMPLE}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
