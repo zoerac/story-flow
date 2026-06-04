@@ -10,6 +10,8 @@ export function useStoryflow() {
       snap: cloneSections(INIT),
       par: null,
       ch: [],
+      stage: "intent",
+      kind: "init",
     },
   ]);
   const [curV, setCurV] = useState("v0");
@@ -37,14 +39,14 @@ export function useStoryflow() {
     scroll();
   };
 
-  const commitVersion = (label, nextSecs) => {
+  const commitVersion = (label, nextSecs, meta = {}) => {
     const vid = `v${vc.current++}`;
     const snap = cloneSections(nextSecs);
     setVers((prev) => {
       const withChild = prev.map((v) =>
         v.id === curV ? { ...v, ch: [...v.ch, vid] } : v,
       );
-      return [...withChild, { id: vid, label, snap, par: curV, ch: [] }];
+      return [...withChild, { id: vid, label, snap, par: curV, ch: [], stage: meta.stage || "structure", kind: meta.kind || "edit", ...meta }];
     });
     setCurV(vid);
     setSecs(cloneSections(nextSecs));
