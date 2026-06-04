@@ -53,10 +53,6 @@ function App() {
     story.commitVersion(label, nextSecs, { stage: "structure", kind: "edit" });
   };
 
-  const commitRefineVersion = (label, nextSecs) => {
-    story.commitVersion(label, nextSecs, { stage: "refine", kind: "refine" });
-  };
-
   const setLeftOpen = (next) => {
     setLayout((prev) => ({ ...prev, leftOpen: typeof next === "function" ? next(prev.leftOpen) : next }));
   };
@@ -116,8 +112,9 @@ function App() {
               vers={story.vers}
               curV={story.curV}
               restore={handleRestore}
-              commitVersion={commitRefineVersion}
-              addMsg={story.addMsg}
+              saveVersion={story.saveVersion}
+              toggleSaved={story.toggleSaved}
+              deleteVersion={story.deleteVersion}
               onBack={() => handleStageJump("structure")}
             />
           </div>
@@ -161,6 +158,7 @@ function App() {
                   overI={story.overI}
                   setOverI={story.setOverI}
                   onDrop={story.onDrop}
+                  onMergeSection={story.mergeSection}
                   commitVersion={commitStructureVersion}
                 />
               )}
@@ -179,11 +177,27 @@ function App() {
                 send={story.send}
                 thinking={story.thinking}
                 chatEnd={story.chatEnd}
+                restore={handleRestore}
+                dragI={story.dragI}
+                focusedSection={story.focusedSection}
+                setFocusedSection={story.setFocusedSection}
+                addMsg={story.addMsg}
+                secs={story.secs}
               />
             </div>
             <ResizeBar hidden={!layout.rightOpen} onMouseDown={startResize("right")} />
             <div style={{ minWidth: 0, overflow: "hidden" }}>
-              {layout.rightOpen && <VersionTree vers={story.vers} curV={story.curV} restore={handleRestore} />}
+              {layout.rightOpen && (
+                <VersionTree
+                  vers={story.vers}
+                  curV={story.curV}
+                  secs={story.secs}
+                  restore={handleRestore}
+                  saveVersion={() => story.saveVersion("手动保存", { stage: "structure", kind: "edit" })}
+                  toggleSaved={story.toggleSaved}
+                  deleteVersion={story.deleteVersion}
+                />
+              )}
             </div>
           </div>
         )}
@@ -895,7 +909,7 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
   );
 }
 
-function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBack }) {
+function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, saveVersion, toggleSaved, deleteVersion, onBack }) {
   const [zoom, setZoom] = useState(1);
   const [activeId, setActiveId] = useState("title");
   const [rightTab, setRightTab] = useState("materials");
@@ -1191,7 +1205,15 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
           </div>
           <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
             {rightTab === "versions" ? (
-              <VersionTree vers={vers} curV={curV} restore={restore} />
+              <VersionTree
+                vers={vers}
+                curV={curV}
+                secs={secs}
+                restore={restore}
+                saveVersion={() => saveVersion("AI精修·手动保存", { stage: "refine", kind: "refine" })}
+                toggleSaved={toggleSaved}
+                deleteVersion={deleteVersion}
+              />
             ) : rightTab === "proposals" ? (
               <ProposalPreviewPanel
                 intent={editNote}

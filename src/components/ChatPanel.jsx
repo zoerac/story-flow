@@ -7,7 +7,7 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 // NOTE for Codex: App.jsx needs to pass these props to <ChatPanel>:
 //   dragI={story.dragI}  focusedSection={story.focusedSection}
 //   setFocusedSection={story.setFocusedSection}  addMsg={story.addMsg}  secs={story.secs}
-export function ChatPanel({ msgs, send, thinking, chatEnd, dragI, focusedSection, setFocusedSection, addMsg, secs }) {
+export function ChatPanel({ msgs, send, thinking, chatEnd, restore, dragI, focusedSection, setFocusedSection, addMsg, secs }) {
   const [inp, setInp] = useState("");
   const [localThinking, setLocalThinking] = useState(false);
 
@@ -91,23 +91,52 @@ export function ChatPanel({ msgs, send, thinking, chatEnd, dragI, focusedSection
           >
             <div
               style={{
-                padding: "7px 11px",
-                borderRadius: 10,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: m.from === "user" ? "flex-end" : "flex-start",
                 maxWidth: "88%",
-                fontSize: 12,
-                lineHeight: 1.65,
-                background:
-                  m.from === "user" ? "#EEEDFE" : m.from === "sys" ? "var(--color-background-secondary)" : "#E1F5EE",
-                color:
-                  m.from === "user" ? "#3C3489" : m.from === "sys" ? "var(--color-text-tertiary)" : "#085041",
-                fontStyle: m.from === "sys" ? "italic" : "normal",
-                borderBottomRightRadius: m.from === "user" ? 3 : 10,
-                borderBottomLeftRadius: m.from !== "user" ? 3 : 10,
               }}
             >
-              {m.from === "sys" && <RotateCcw size={10} style={{ marginRight: 4, verticalAlign: -1 }} />}
-              {m.from === "ai" && i > 0 && <Sparkles size={10} style={{ marginRight: 4, verticalAlign: -1 }} />}
-              {m.text}
+              <div
+                style={{
+                  padding: "7px 11px",
+                  borderRadius: 10,
+                  fontSize: 12,
+                  lineHeight: 1.65,
+                  background:
+                    m.from === "user" ? "#EEEDFE" : m.from === "sys" ? "var(--color-background-secondary)" : "#E1F5EE",
+                  color:
+                    m.from === "user" ? "#3C3489" : m.from === "sys" ? "var(--color-text-tertiary)" : "#085041",
+                  fontStyle: m.from === "sys" ? "italic" : "normal",
+                  borderBottomRightRadius: m.from === "user" ? 3 : 10,
+                  borderBottomLeftRadius: m.from !== "user" ? 3 : 10,
+                }}
+              >
+                {m.from === "sys" && <RotateCcw size={10} style={{ marginRight: 4, verticalAlign: -1 }} />}
+                {m.from === "ai" && i > 0 && <Sparkles size={10} style={{ marginRight: 4, verticalAlign: -1 }} />}
+                {m.text}
+              </div>
+              {m.action && (
+                <button
+                  type="button"
+                  onClick={() => restore?.(m.action.undoTo)}
+                  style={{
+                    marginTop: 3,
+                    fontSize: 10,
+                    color: "var(--color-text-tertiary)",
+                    background: "none",
+                    border: "0.5px solid var(--color-border-tertiary)",
+                    borderRadius: 6,
+                    padding: "2px 8px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 3,
+                  }}
+                >
+                  <RotateCcw size={9} /> {m.action.label}
+                </button>
+              )}
             </div>
           </div>
         ))}
