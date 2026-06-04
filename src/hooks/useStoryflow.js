@@ -40,6 +40,13 @@ export function useStoryflow() {
   };
 
   const commitVersion = (label, nextSecs, meta = {}) => {
+    // 去重护栏：内容与当前版本完全相同则不新建节点，避免冗余节点
+    const cur = vers.find((v) => v.id === curV);
+    if (cur && JSON.stringify(cur.snap) === JSON.stringify(nextSecs)) {
+      setSecs(cloneSections(nextSecs));
+      return;
+    }
+
     const vid = `v${vc.current++}`;
     const snap = cloneSections(nextSecs);
     setVers((prev) => {
