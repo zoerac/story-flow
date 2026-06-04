@@ -1,5 +1,19 @@
 import { GitBranch } from "lucide-react";
 
+const STAGE_LABELS = {
+  intent: "意图",
+  visual: "主视觉",
+  structure: "结构",
+  refine: "精修",
+};
+
+const KIND_LABELS = {
+  init: "初始",
+  jump: "跳转",
+  edit: "编辑",
+  refine: "精修",
+};
+
 export function VersionTree({ vers, curV, restore }) {
   const Tree = ({ vid, depth = 0 }) => {
     const v = vers.find((x) => x.id === vid);
@@ -8,9 +22,11 @@ export function VersionTree({ vers, curV, restore }) {
 
     return (
       <div style={{ marginLeft: depth * 16 }}>
-        <div
+        <button
+          type="button"
           onClick={() => restore(v.id)}
           style={{
+            width: "100%",
             padding: "5px 8px",
             borderRadius: 6,
             cursor: "pointer",
@@ -18,6 +34,8 @@ export function VersionTree({ vers, curV, restore }) {
             background: cur ? "#FAECE7" : "transparent",
             border: cur ? "1px solid #F5C4B3" : "1px solid transparent",
             transition: "background 0.15s, border 0.15s",
+            textAlign: "left",
+            fontFamily: "inherit",
           }}
           onMouseEnter={(e) => {
             if (!cur) e.currentTarget.style.background = "var(--color-background-secondary)";
@@ -32,8 +50,12 @@ export function VersionTree({ vers, curV, restore }) {
               {v.label}
             </span>
           </div>
-          {cur && <span style={{ fontSize: 9, color: "#993C1D", marginLeft: 12 }}>当前</span>}
-        </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 12, marginTop: 3 }}>
+            <span style={{ ...tagStyle, background: "#EEEDFE", color: "#3C3489" }}>{STAGE_LABELS[v.stage] || "结构"}</span>
+            <span style={{ ...tagStyle, background: v.kind === "jump" ? "#E6F1FB" : "#E1F5EE", color: v.kind === "jump" ? "#1F5F95" : "#085041" }}>{KIND_LABELS[v.kind] || "编辑"}</span>
+            {cur && <span style={{ fontSize: 9, color: "#993C1D" }}>当前</span>}
+          </div>
+        </button>
         {v.ch.map((cid) => (
           <Tree key={cid} vid={cid} depth={depth + 1} />
         ))}
@@ -52,11 +74,21 @@ export function VersionTree({ vers, curV, restore }) {
         ))}
       </div>
       <div style={{ padding: "8px 10px", borderTop: "0.5px solid var(--color-border-tertiary)", flexShrink: 0, fontSize: 10, color: "var(--color-text-tertiary)", textAlign: "center", lineHeight: 1.5 }}>
-        点击任意版本可回溯<br />回溯后拖拽即自动分叉
+        顶部步骤跳转会写入版本树<br />点击历史节点可恢复并继续分叉
       </div>
     </div>
   );
 }
+
+const tagStyle = {
+  height: 16,
+  borderRadius: 5,
+  padding: "0 5px",
+  display: "inline-flex",
+  alignItems: "center",
+  fontSize: 9,
+  lineHeight: "16px",
+};
 
 const panelHead = {
   padding: "10px 14px",
