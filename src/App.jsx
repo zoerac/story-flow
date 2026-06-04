@@ -127,8 +127,7 @@ function App() {
               secs={story.secs}
               sel={story.sel}
               selPage={story.selPage}
-              setSel={story.setSel}
-              setSelPage={story.setSelPage}
+              rightOpen={layout.rightOpen}
               vers={story.vers}
               curV={story.curV}
               restore={handleRestore}
@@ -383,8 +382,75 @@ const S = {
   refineRoot: {
     height: 640,
     display: "grid",
-    gridTemplateColumns: "188px minmax(0,1fr) 276px",
     background: "var(--color-background-tertiary)",
+  },
+  refineWorkspace: {
+    minWidth: 0,
+    minHeight: 0,
+    display: "grid",
+    gridTemplateRows: "minmax(0,1fr) auto",
+    gap: 10,
+    padding: 12,
+    overflow: "hidden",
+  },
+  refineSection: {
+    minWidth: 0,
+    borderRadius: 8,
+    border: "1px solid var(--color-border-tertiary)",
+    background: "var(--color-background-primary)",
+    overflow: "hidden",
+  },
+  refineSectionHead: {
+    minHeight: 36,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "0 12px",
+    borderBottom: "0.5px solid var(--color-border-tertiary)",
+    fontSize: 12,
+    fontWeight: 650,
+  },
+  refineOverviewGrid: {
+    padding: "10px 12px",
+    display: "grid",
+    gridTemplateColumns: "minmax(0,1fr) auto",
+    gap: 12,
+    alignItems: "center",
+  },
+  pageStrip: {
+    padding: 10,
+    display: "flex",
+    gap: 8,
+    overflowX: "auto",
+  },
+  pageThumbBtn: {
+    width: 116,
+    minWidth: 116,
+    padding: 8,
+    borderRadius: 8,
+    cursor: "pointer",
+    textAlign: "left",
+    fontFamily: "inherit",
+  },
+  pageThumbSlide: {
+    aspectRatio: "16/10",
+    borderRadius: 5,
+    border: "1px solid",
+    padding: 8,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    overflow: "hidden",
+  },
+  refinePptSection: {
+    minWidth: 0,
+    minHeight: 0,
+    borderRadius: 8,
+    border: "1px solid var(--color-border-tertiary)",
+    background: "var(--color-background-primary)",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
   },
   refineLeftPanel: {
     minWidth: 0,
@@ -594,6 +660,29 @@ const S = {
     fontSize: 11,
     lineHeight: 1.5,
     outline: "none",
+  },
+  selectedMaterialBadge: {
+    minHeight: 24,
+    borderRadius: 7,
+    border: "1px solid var(--color-border-tertiary)",
+    padding: "0 9px",
+    display: "flex",
+    alignItems: "center",
+    fontSize: 11,
+    fontWeight: 650,
+    whiteSpace: "nowrap",
+  },
+  intentSuggestion: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "var(--color-text-tertiary)",
+    background: "var(--color-background-secondary)",
+    border: "1px solid var(--color-border-tertiary)",
+    borderRadius: 7,
+    padding: "3px 8px",
+    fontSize: 11,
   },
   proposalCard: {
     borderRadius: 8,
@@ -815,7 +904,7 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
   );
 }
 
-function AIRefinePage({ secs, sel, selPage, setSelPage, vers, curV, restore, commitVersion, addMsg, onBack }) {
+function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, commitVersion, addMsg, onBack }) {
   const [zoom, setZoom] = useState(1);
   const [dragStart, setDragStart] = useState(null);
   const [selRect, setSelRect] = useState(null);
@@ -826,6 +915,8 @@ function AIRefinePage({ secs, sel, selPage, setSelPage, vers, curV, restore, com
   const curSec = secs[sel];
   const curPage = curSec?.pages[selPage] || curSec?.pages[0];
   const region = classifyRegion(selRect);
+  const selectedMaterialCount = countSelectedMaterials(selRect);
+  const suggestedIntent = buildSuggestedIntent(region, selectedMaterialCount);
   const proposals = buildRefineProposals(intent, region, selPage, curPage, curSec);
 
   const setZoomClamped = (next) => setZoom((prev) => Math.min(1.8, Math.max(0.6, typeof next === "function" ? next(prev) : next)));
@@ -884,195 +975,162 @@ function AIRefinePage({ secs, sel, selPage, setSelPage, vers, curV, restore, com
   };
 
   return (
-    <div style={S.refineRoot}>
-      <div style={S.refineLeftPanel}>
-        <div style={S.refineLeftHead}>页面概览</div>
-        {/* 上段：页面信息概览 */}
-        <div style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{
-            borderRadius: 8,
-            border: `1px solid ${curSec?.bd || "var(--color-border-tertiary)"}`,
-            background: curSec?.bg || "var(--color-background-secondary)",
-            padding: "10px 12px",
-            display: "grid",
-            gap: 7,
-            flexShrink: 0,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 16, height: 3, borderRadius: 2, background: curSec?.c, flexShrink: 0 }} />
-              <span style={{ fontSize: 10, color: curSec?.c, fontWeight: 600 }}>
-                第 {selPage + 1} 页 · {curSec?.title}
-              </span>
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 650, color: "var(--color-text-primary)", lineHeight: 1.35 }}>
-              {curPage?.h}
-            </div>
-            <div style={{
-              fontSize: 10, color: "var(--color-text-secondary)", lineHeight: 1.55,
-              overflow: "hidden", display: "-webkit-box",
-              WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
-            }}>
-              {curPage?.b}
+    <div
+      style={{
+        ...S.refineRoot,
+        gridTemplateColumns: `minmax(0,1fr) ${rightOpen ? "276px" : "0px"}`,
+      }}
+    >
+      <div style={S.refineWorkspace}>
+        <section style={S.refinePptSection}>
+          <div style={S.refineSectionHead}>
+            <span>PPT</span>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+              <button type="button" onClick={onBack} style={S.backBtn}>
+                <ArrowLeft size={14} /> 返回结构编辑
+              </button>
+              <button type="button" onClick={() => setZoomClamped((v) => v - 0.1)} style={S.zoomBtn} aria-label="缩小">
+                <Minus size={14} />
+              </button>
+              <span style={{ width: 42, textAlign: "center", fontSize: 11, color: "var(--color-text-secondary)" }}>{Math.round(zoom * 100)}%</span>
+              <button type="button" onClick={() => setZoomClamped((v) => v + 0.1)} style={S.zoomBtn} aria-label="放大">
+                <Plus size={14} />
+              </button>
             </div>
           </div>
-          <div style={{ flexShrink: 0, display: "grid", gap: 7 }}>
-            <div style={S.agentLabel}>切换页面</div>
-            <div style={S.pageNumGrid}>
-              {curSec?.pages.map((page, index) => {
-                const active = index === selPage;
+          <div style={S.canvasViewport}>
+            <div style={{ width: 720 * zoom, height: 450 * zoom, position: "relative", flexShrink: 0 }}>
+              <div
+                ref={canvasRef}
+                onMouseDown={onMouseDown}
+                onMouseMove={onMouseMove}
+                onMouseUp={onMouseUp}
+                style={{
+                  ...S.bigSlide,
+                  transform: `scale(${zoom})`,
+                  transformOrigin: "top left",
+                  borderColor: curSec?.bd,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24 }}>
+                  <div>
+                    <div style={{ width: 64, height: 6, borderRadius: 3, background: curSec?.c, marginBottom: 18 }} />
+                    <div style={{ fontSize: 30, fontWeight: 650, lineHeight: 1.18, maxWidth: 430 }}>{curPage?.h}</div>
+                    <div style={{ fontSize: 14, color: "var(--color-text-tertiary)", marginTop: 10 }}>{curSec?.title} · {curSec?.sub}</div>
+                  </div>
+                  <div style={{ ...S.visualBadge, background: curSec?.bg, borderColor: curSec?.bd, color: curSec?.c }}>
+                    <Sparkles size={18} /> AI Native
+                  </div>
+                </div>
+                <div style={S.slideBodyGrid}>
+                  <div style={{ fontSize: 17, lineHeight: 1.8, color: "var(--color-text-secondary)" }}>{curPage?.b}</div>
+                  <div style={{ ...S.mockVisual, background: visualRevision % 2 ? "#E6F1FB" : curSec?.bg, borderColor: visualRevision % 2 ? "#B5D4F4" : curSec?.bd }}>
+                    <Image size={28} style={{ color: visualRevision % 2 ? "#378ADD" : curSec?.c }} />
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>
+                      {visualRevision % 2 ? "重绘数据视觉" : "多模态素材区"}
+                    </div>
+                    <div style={S.barRow}><span style={{ ...S.bar, width: "76%", background: curSec?.c }} /><span style={{ ...S.bar, width: "48%", background: "#D4537E" }} /></div>
+                    <div style={S.barRow}><span style={{ ...S.bar, width: "58%", background: "#1D9E75" }} /><span style={{ ...S.bar, width: "84%", background: "#378ADD" }} /></div>
+                  </div>
+                </div>
+                {selRect && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: selRect.x,
+                      top: selRect.y,
+                      width: selRect.w,
+                      height: selRect.h,
+                      border: "2px dashed #7F77DD",
+                      background: "rgba(127,119,221,0.12)",
+                      borderRadius: 4,
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style={S.refineSection}>
+          <div style={{ padding: 12, display: "grid", gap: 8 }}>
+            {selectedMaterialCount > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span style={{ ...S.selectedMaterialBadge, borderColor: curSec?.bd, background: curSec?.bg, color: curSec?.c }}>
+                  已勾选 {selectedMaterialCount} 个素材
+                </span>
+                {!intent.trim() && (
+                  <span style={S.intentSuggestion}>
+                    {suggestedIntent}
+                  </span>
+                )}
+              </div>
+            )}
+            <textarea
+              value={intent}
+              onChange={(e) => {
+                setIntent(e.target.value);
+                setRightTab("proposals");
+              }}
+              placeholder={selectedMaterialCount > 0 ? suggestedIntent : "输入你希望 AI 精修的方向，例如：标题更有结论感、正文压缩成汇报口径、把图表做得更像对比数据卡。"}
+              style={{ ...S.intentInput, minHeight: 76 }}
+            />
+          </div>
+        </section>
+      </div>
+
+      {rightOpen && (
+        <div style={S.agentPanel}>
+          <div style={S.agentHead}>
+            <div style={S.segmented}>
+              {[
+                ["versions", "版本树"],
+                ["proposals", "精修方案"],
+              ].map(([id, label]) => {
+                const active = rightTab === id;
                 return (
                   <button
-                    key={page.id}
+                    key={id}
                     type="button"
-                    onClick={() => { setSelPage(index); setSelRect(null); }}
+                    onClick={() => setRightTab(id)}
                     style={{
-                      ...S.pageNumBtn,
-                      border: active ? `1px solid ${curSec.bd}` : "1px solid var(--color-border-tertiary)",
-                      background: active ? curSec.bg : "var(--color-background-primary)",
-                      color: active ? curSec.c : "var(--color-text-secondary)",
+                      ...S.segmentBtn,
+                      background: active ? "#EEEDFE" : "transparent",
+                      color: active ? "#3C3489" : "var(--color-text-secondary)",
+                      fontWeight: active ? 650 : 500,
                     }}
                   >
-                    {index + 1}
+                    {label}
                   </button>
                 );
               })}
             </div>
           </div>
-        </div>
-        {/* 分隔线 */}
-        <div style={{ height: "0.5px", background: "var(--color-border-tertiary)", flexShrink: 0 }} />
-        {/* 下段：修改意图 */}
-        <div style={{ padding: 14, display: "grid", gap: 8, flexShrink: 0 }}>
-          <div style={S.agentLabel}>修改意图</div>
-          <textarea
-            value={intent}
-            onChange={(e) => {
-              setIntent(e.target.value);
-              setRightTab("proposals");
-            }}
-            placeholder="输入你希望 AI 精修的方向，例如：标题更有结论感、正文压缩成汇报口径、把图表做得更像对比数据卡。"
-            style={S.intentInput}
-          />
-        </div>
-      </div>
-      <div style={S.refineCanvasCol}>
-        <div style={S.refineTopbar}>
-          <button type="button" onClick={onBack} style={S.backBtn}>
-            <ArrowLeft size={14} /> 返回结构编辑
-          </button>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-            <button type="button" onClick={() => setZoomClamped((v) => v - 0.1)} style={S.zoomBtn} aria-label="缩小">
-              <Minus size={14} />
-            </button>
-            <span style={{ width: 42, textAlign: "center", fontSize: 11, color: "var(--color-text-secondary)" }}>{Math.round(zoom * 100)}%</span>
-            <button type="button" onClick={() => setZoomClamped((v) => v + 0.1)} style={S.zoomBtn} aria-label="放大">
-              <Plus size={14} />
-            </button>
-          </div>
-        </div>
-        <div style={S.canvasViewport}>
-          <div style={{ width: 720 * zoom, height: 450 * zoom, position: "relative", flexShrink: 0 }}>
-            <div
-              ref={canvasRef}
-              onMouseDown={onMouseDown}
-              onMouseMove={onMouseMove}
-              onMouseUp={onMouseUp}
-              style={{
-                ...S.bigSlide,
-                transform: `scale(${zoom})`,
-                transformOrigin: "top left",
-                borderColor: curSec?.bd,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24 }}>
-                <div>
-                  <div style={{ width: 64, height: 6, borderRadius: 3, background: curSec?.c, marginBottom: 18 }} />
-                  <div style={{ fontSize: 30, fontWeight: 650, lineHeight: 1.18, maxWidth: 430 }}>{curPage?.h}</div>
-                  <div style={{ fontSize: 14, color: "var(--color-text-tertiary)", marginTop: 10 }}>{curSec?.title} · {curSec?.sub}</div>
-                </div>
-                <div style={{ ...S.visualBadge, background: curSec?.bg, borderColor: curSec?.bd, color: curSec?.c }}>
-                  <Sparkles size={18} /> AI Native
-                </div>
-              </div>
-              <div style={S.slideBodyGrid}>
-                <div style={{ fontSize: 17, lineHeight: 1.8, color: "var(--color-text-secondary)" }}>{curPage?.b}</div>
-                <div style={{ ...S.mockVisual, background: visualRevision % 2 ? "#E6F1FB" : curSec?.bg, borderColor: visualRevision % 2 ? "#B5D4F4" : curSec?.bd }}>
-                  <Image size={28} style={{ color: visualRevision % 2 ? "#378ADD" : curSec?.c }} />
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>
-                    {visualRevision % 2 ? "重绘数据视觉" : "多模态素材区"}
+          <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            {rightTab === "versions" ? (
+              <VersionTree vers={vers} curV={curV} restore={restore} />
+            ) : (
+              <div style={{ height: "100%", padding: 12, display: "grid", gap: 10, overflowY: "auto" }}>
+                {!intent.trim() ? (
+                  <div style={{ border: "1px dashed var(--color-border-tertiary)", borderRadius: 8, padding: 14, color: "var(--color-text-tertiary)", fontSize: 11, lineHeight: 1.7, background: "var(--color-background-secondary)" }}>
+                    在底部输入修改意图后，这里会即时生成三张 mock 精修方案图。可先框选标题、正文或图表区域，让方案更聚焦。
                   </div>
-                  <div style={S.barRow}><span style={{ ...S.bar, width: "76%", background: curSec?.c }} /><span style={{ ...S.bar, width: "48%", background: "#D4537E" }} /></div>
-                  <div style={S.barRow}><span style={{ ...S.bar, width: "58%", background: "#1D9E75" }} /><span style={{ ...S.bar, width: "84%", background: "#378ADD" }} /></div>
-                </div>
+                ) : (
+                  proposals.map((proposal) => (
+                    <RefineProposalCard
+                      key={proposal.index}
+                      proposal={proposal}
+                      curSec={curSec}
+                      onApprove={() => approveProposal(proposal)}
+                    />
+                  ))
+                )}
               </div>
-              {selRect && (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: selRect.x,
-                    top: selRect.y,
-                    width: selRect.w,
-                    height: selRect.h,
-                    border: "2px dashed #7F77DD",
-                    background: "rgba(127,119,221,0.12)",
-                    borderRadius: 4,
-                    pointerEvents: "none",
-                  }}
-                />
-              )}
-            </div>
+            )}
           </div>
         </div>
-      </div>
-      <div style={S.agentPanel}>
-        <div style={S.agentHead}>
-          <div style={S.segmented}>
-            {[
-              ["versions", "版本树"],
-              ["proposals", "精修方案"],
-            ].map(([id, label]) => {
-              const active = rightTab === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setRightTab(id)}
-                  style={{
-                    ...S.segmentBtn,
-                    background: active ? "#EEEDFE" : "transparent",
-                    color: active ? "#3C3489" : "var(--color-text-secondary)",
-                    fontWeight: active ? 650 : 500,
-                  }}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-          {rightTab === "versions" ? (
-            <VersionTree vers={vers} curV={curV} restore={restore} />
-          ) : (
-            <div style={{ height: "100%", padding: 12, display: "grid", gap: 10, overflowY: "auto" }}>
-              {!intent.trim() ? (
-                <div style={{ border: "1px dashed var(--color-border-tertiary)", borderRadius: 8, padding: 14, color: "var(--color-text-tertiary)", fontSize: 11, lineHeight: 1.7, background: "var(--color-background-secondary)" }}>
-                  在左侧输入修改意图后，这里会即时生成三张 mock 精修方案图。可先框选标题、正文或图表区域，让方案更聚焦。
-                </div>
-              ) : (
-                proposals.map((proposal) => (
-                  <RefineProposalCard
-                    key={proposal.index}
-                    proposal={proposal}
-                    curSec={curSec}
-                    onApprove={() => approveProposal(proposal)}
-                  />
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1167,6 +1225,33 @@ function refineTitle(title, intent) {
   const cleanIntent = intent.replace(/[。！？.!?]+$/u, "");
   if (title.includes("：")) return `${title} · ${cleanIntent}`;
   return `${title}：${cleanIntent}`;
+}
+
+const REFINE_MATERIALS = [
+  { id: "title", x: 44, y: 66, w: 430, h: 76 },
+  { id: "section", x: 44, y: 145, w: 430, h: 26 },
+  { id: "badge", x: 535, y: 44, w: 141, h: 38 },
+  { id: "body", x: 44, y: 184, w: 362, h: 170 },
+  { id: "visual-card", x: 436, y: 184, w: 240, h: 170 },
+  { id: "visual-bars-a", x: 454, y: 286, w: 204, h: 14 },
+  { id: "visual-bars-b", x: 454, y: 308, w: 204, h: 14 },
+];
+
+function countSelectedMaterials(rect) {
+  if (!rect) return 0;
+  return REFINE_MATERIALS.filter((material) => rectsIntersect(rect, material)).length;
+}
+
+function rectsIntersect(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function buildSuggestedIntent(region, count) {
+  if (!count) return "";
+  if (region === "title") return "建议：强化标题结论，把选中素材改成更适合汇报的判断句。";
+  if (region === "visual") return "建议：重绘选中素材，突出数据对比、趋势和关键结论标注。";
+  if (region === "body") return "建议：压缩选中素材文字，保留关键因果和可汇报的数据锚点。";
+  return "建议：统一优化选中素材的表达层级、留白和视觉重点。";
 }
 
 function classifyRegion(rect) {
