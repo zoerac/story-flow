@@ -120,6 +120,95 @@ export const AI_CHAT = [
   "当前版本的故事线逻辑清晰。如果想进一步打磨，可以考虑在「核心问题」后加一页 '解决方案概览' 作为过渡。",
 ];
 
+export const REFINE_IMAGE_CANDIDATES = [
+  {
+    id: "workflow-cards",
+    title: "多模态卡片墙",
+    image: VISUAL_IMAGES[0],
+    tint: "#EEEDFE",
+    accent: "#7F77DD",
+  },
+  {
+    id: "data-dashboard",
+    title: "数据洞察看板",
+    image: VISUAL_IMAGES[1],
+    tint: "#E6F1FB",
+    accent: "#378ADD",
+  },
+  {
+    id: "structure-map",
+    title: "故事线结构图",
+    image: VISUAL_IMAGES[2],
+    tint: "#E1F5EE",
+    accent: "#1D9E75",
+  },
+];
+
+export const REFINE_TEXT_POLISHES = {
+  title: [
+    "AI Native 编辑器的关键突破：让演示文稿从页面制作走向结构协作",
+    "以结构层为中心，重塑演示文稿的人机协作流程",
+    "StoryFlow：让 AI 理解叙事结构，而不只是生成单页内容",
+  ],
+  body: [
+    "先锁定叙事骨架，再让页面、素材与 AI 建议围绕同一意图持续收敛，减少反复返工。",
+    "结构层保存用户意图与版本路径，AI 可以基于上下文解释修改原因，并给出更可采纳的精修建议。",
+    "从章节组织、页面生成到局部精修，StoryFlow 将 PPT 编辑压缩成可回溯、可协作的连续工作流。",
+  ],
+};
+
+export const REFINE_LAYOUT_REBUILDS = [
+  {
+    id: "focus-title",
+    title: "结论优先重构",
+    summary: "把标题压到视觉中心，正文收敛为三条论据，右侧素材改成指标卡。",
+    patch: {
+      title: { x: 52, y: 54, w: 480, h: 96 },
+      body: { x: 54, y: 196, w: 310, h: 150 },
+      visual: { x: 402, y: 172, w: 260, h: 190 },
+      badge: { x: 540, y: 54, w: 132, h: 36 },
+    },
+  },
+  {
+    id: "visual-balance",
+    title: "左右均衡重排",
+    summary: "扩大图片素材，正文压缩为说明区，让观众先看到视觉证据。",
+    patch: {
+      title: { x: 44, y: 52, w: 405, h: 88 },
+      body: { x: 44, y: 330, w: 600, h: 58 },
+      visual: { x: 395, y: 132, w: 266, h: 178 },
+      badge: { x: 520, y: 54, w: 142, h: 36 },
+    },
+  },
+  {
+    id: "dense-report",
+    title: "汇报密度优化",
+    summary: "将正文和素材统一压入网格，保留足够留白并突出结构层关键词。",
+    patch: {
+      title: { x: 48, y: 50, w: 600, h: 72 },
+      body: { x: 48, y: 158, w: 300, h: 180 },
+      visual: { x: 382, y: 158, w: 284, h: 180 },
+      badge: { x: 48, y: 360, w: 150, h: 36 },
+    },
+  },
+];
+
+export function polishRefineText(kind, value, intent = "") {
+  const list = REFINE_TEXT_POLISHES[kind] || REFINE_TEXT_POLISHES.body;
+  const seed = `${value || ""}${intent || ""}`.length;
+  const picked = list[seed % list.length];
+  if (!intent.trim()) return picked;
+  return `${picked}｜已按「${intent.trim()}」调整语气`;
+}
+
+export function buildRefineLayoutProposal(intent = "", region = "局部区域") {
+  const source = REFINE_LAYOUT_REBUILDS[Math.max(0, intent.trim().length - 1) % REFINE_LAYOUT_REBUILDS.length];
+  return {
+    ...source,
+    summary: `${source.summary} 目标：优化${region}${intent.trim() ? `，满足「${intent.trim()}」` : ""}。`,
+  };
+}
+
 export const VISUAL_INTENT_SUMMARY = "面向 AI Native 演示文稿编辑器的产品汇报，视觉要克制、专业、强调结构层与多模态素材的协作关系。";
 
 export const VISUAL_CANVA_TEMPLATES = [
