@@ -385,20 +385,37 @@ export const VISUAL_AI_GENERATIONS = [
   visualItem("ai", 17, "演示前体检雷达", "适合表达结构风险检测与自动建议。", ["体检", "风险", "建议"]),
 ];
 
-const tokenize = (text) => String(text || "").toLowerCase().split(/[\s,，。；;、：:]+/u).filter(Boolean);
+const normalize = (text) => String(text || "").toLowerCase();
+const tokenize = (text) => normalize(text).split(/[\s,，。；;、：:·/|]+/u).filter(Boolean);
+const visualTerms = (item) => [...item.tags, ...tokenize(`${item.title} ${item.style}`)].filter((term) => term.length > 1);
+
+function visualScore(item, intent) {
+  const text = normalize(intent);
+  const tokens = tokenize(intent);
+  if (!text && !tokens.length) return 0;
+
+  return visualTerms(item).reduce((sum, term) => {
+    const key = normalize(term);
+    if (!key) return sum;
+    const direct = text.includes(key) ? 4 : 0;
+    const partial = tokens.some((token) => key.includes(token) || token.includes(key)) ? 2 : 0;
+    return sum + direct + partial;
+  }, 0);
+}
 
 export function rankVisualCandidates(candidates, intent) {
-  const tokens = tokenize(intent);
-  if (!tokens.length) return [...candidates];
+  return candidates
+    .map((item, index) => ({ item, index, score: visualScore(item, intent) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(({ item }) => item);
+}
 
-  return [...candidates].sort((a, b) => {
-    const score = (item) => {
-      const haystack = `${item.title} ${item.style} ${item.tags.join(" ")}`.toLowerCase();
-      return tokens.reduce((sum, token) => sum + (haystack.includes(token) ? 3 : 0), 0)
-        + item.tags.reduce((sum, tag) => sum + (tokens.some((token) => tag.toLowerCase().includes(token)) ? 2 : 0), 0);
-    };
-    return score(b) - score(a);
-  });
+export function visualRecommendationReason(visual, intent) {
+  if (!visual) return "选择一个模板后查看推荐理由。";
+  const text = normalize(intent);
+  const matched = visual.tags.filter((tag) => text.includes(normalize(tag))).slice(0, 3);
+  const terms = matched.length ? matched : visual.tags.slice(0, 3);
+  return `匹配：${terms.join("、")}。适合把「${visual.title}」作为初稿的视觉基调。`;
 }
 
 export function applyVisualToSections(visual, sections = INIT) {
