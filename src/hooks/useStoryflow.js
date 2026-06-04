@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { AI_CHAT, AI_DRAG, INIT, cloneSections, pick } from "../data/mock";
+import { AI_CHAT, AI_DRAG, INIT, applyStorylineStructuralImpact, cloneSections, pick } from "../data/mock";
 
 export function useStoryflow() {
   const [secs, setSecs] = useState(() => cloneSections(INIT));
@@ -61,8 +61,14 @@ export function useStoryflow() {
     const [mv] = next.splice(dragI, 1);
     next.splice(to, 0, mv);
     const dir = to < dragI ? "前移" : "后移";
+    const impacted = applyStorylineStructuralImpact(next, {
+      from: dragI,
+      to,
+      movedId: mv.id,
+      direction: dir,
+    });
 
-    commitVersion(`${mv.title}${dir}`, next);
+    commitVersion(`${mv.title}${dir}`, impacted);
     setSel(to);
     setSelPage(0);
     setDragI(null);
