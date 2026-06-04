@@ -14,17 +14,6 @@ import {
 } from "./data/mock";
 import { useStoryflow } from "./hooks/useStoryflow";
 
-const STAGE_LABELS = {
-  intent: "意图对齐",
-  visual: "主视觉",
-  structure: "结构编辑",
-  refine: "AI精修",
-};
-
-function stageLabel(stage) {
-  return STAGE_LABELS[stage] || "结构编辑";
-}
-
 function App() {
   const story = useStoryflow();
   const [showIntro, setShowIntro] = useState(true);
@@ -49,12 +38,7 @@ function App() {
   const handleStageJump = (targetStage) => {
     if (!targetStage || targetStage === currentStage) return;
 
-    story.commitVersion(`跳转：${stageLabel(currentStage)} → ${stageLabel(targetStage)}`, story.secs, {
-      stage: targetStage,
-      kind: "jump",
-      fromStage: currentStage,
-      toStage: targetStage,
-    });
+    // 纯步骤切换只切换视图，不写入版本树（仅内容改动才生成版本节点）
     setStageView(targetStage);
   };
 
