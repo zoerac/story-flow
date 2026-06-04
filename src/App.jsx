@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Image, Minus, Plus, Sparkles, Type } from "lucide-react";
 import { ChatPanel } from "./components/ChatPanel";
 import { Intro } from "./components/Intro";
@@ -538,7 +538,7 @@ const S = {
     padding: 14,
     display: "flex",
     justifyContent: "center",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
   bigSlide: {
     width: 720,
@@ -912,7 +912,7 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage }) {
 }
 
 function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBack }) {
-  const [zoom, setZoom] = useState(1.08);
+  const [zoom, setZoom] = useState(1);
   const [activeId, setActiveId] = useState("title");
   const [rightTab, setRightTab] = useState("materials");
   const [panelW, setPanelW] = useState(240);
@@ -923,6 +923,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
   const [textEdits, setTextEdits] = useState({});
   const [layouts, setLayouts] = useState(() => cloneRefineLayouts());
   const canvasRef = useRef(null);
+  const viewportRef = useRef(null);
   const curSec = secs[sel];
   const curPage = curSec?.pages[selPage] || curSec?.pages[0];
   const pageKey = curPage?.id || "page";
@@ -934,7 +935,34 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
   const proposalRegion = selRect ? classifyRegion(selRect) : materialRegion(activeId);
   const proposals = buildRefineProposals(editNote, proposalRegion, selPage, { ...curPage, h: displayTitle, b: displayBody }, curSec);
 
-  const setZoomClamped = (next) => setZoom((prev) => Math.min(1.8, Math.max(0.6, typeof next === "function" ? next(prev) : next)));
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return undefined;
+
+    const fitToViewport = () => {
+      const rect = viewport.getBoundingClientRect();
+      const nextZoom = Math.min((rect.width - 8) / SLIDE_W, (rect.height - 8) / SLIDE_H);
+      if (Number.isFinite(nextZoom) && nextZoom > 0) {
+        setZoom(Math.min(1.8, Math.max(0.35, nextZoom)));
+      }
+    };
+
+    fitToViewport();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", fitToViewport);
+      return () => window.removeEventListener("resize", fitToViewport);
+    }
+
+    const observer = new ResizeObserver(fitToViewport);
+    observer.observe(viewport);
+    window.addEventListener("resize", fitToViewport);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", fitToViewport);
+    };
+  }, [panelW, rightOpen]);
+
+  const setZoomClamped = (next) => setZoom((prev) => Math.min(1.8, Math.max(0.35, typeof next === "function" ? next(prev) : next)));
   const updateText = (kind, value) => setTextEdits((prev) => ({ ...prev, [pageKey]: { ...prev[pageKey], [kind]: value } }));
   const updateLayout = (id, patch) => setLayouts((prev) => ({ ...prev, [id]: clampLayout({ ...prev[id], ...patch }) }));
 
@@ -942,8 +970,8 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return null;
     return {
-      x: Math.max(0, Math.min((e.clientX - rect.left) / zoom, 720)),
-      y: Math.max(0, Math.min((e.clientY - rect.top) / zoom, 450)),
+      x: Math.max(0, Math.min((e.clientX - rect.left) / zoom, SLIDE_W)),
+      y: Math.max(0, Math.min((e.clientY - rect.top) / zoom, SLIDE_H)),
     };
   };
 
@@ -1062,8 +1090,8 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, onBa
               </button>
             </div>
           </div>
-          <div style={S.canvasViewport}>
-            <div style={{ width: 720 * zoom, height: 450 * zoom, position: "relative", flexShrink: 0 }}>
+          <div ref={viewportRef} style={S.canvasViewport}>
+            <div style={{ width: SLIDE_W * zoom, height: SLIDE_H * zoom, position: "relative", flexShrink: 0 }}>
               <div
                 ref={canvasRef}
                 onMouseDown={startSelection}
@@ -1434,6 +1462,9 @@ const REFINE_FONT_OPTIONS = [
   { label: "等宽技术", value: "'SFMono-Regular', Consolas, 'Liberation Mono', monospace" },
 ];
 
+const SLIDE_W = 720;
+const SLIDE_H = 450;
+
 const REFINE_BASE_LAYOUTS = {
   title: { x: 44, y: 66, w: 430, h: 76, fontSize: 30, fontFamily: REFINE_FONT_OPTIONS[0].value },
   section: { x: 44, y: 145, w: 430, h: 28, fontSize: 14, fontFamily: REFINE_FONT_OPTIONS[0].value },
@@ -1464,8 +1495,8 @@ function clampLayout(rect) {
   const h = Math.min(320, Math.max(34, rect.h));
   const fontSize = rect.fontSize ? Math.min(72, Math.max(8, rect.fontSize)) : rect.fontSize;
   return {
-    x: Math.min(720 - w - 24, Math.max(24, rect.x)),
-    y: Math.min(450 - h - 24, Math.max(24, rect.y)),
+    x: Math.min(SLIDE_W - w - 24, Math.max(24, rect.x)),
+    y: Math.min(SLIDE_H - h - 24, Math.max(24, rect.y)),
     w,
     h,
     ...(fontSize ? { fontSize } : {}),
