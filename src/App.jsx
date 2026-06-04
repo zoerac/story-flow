@@ -914,6 +914,8 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
   const [selection, setSelection] = useState(null);
   const [selectionDraft, setSelectionDraft] = useState("");
   const [layoutProposal, setLayoutProposal] = useState(null);
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [proposalAdvice, setProposalAdvice] = useState("");
   const [gesture, setGesture] = useState(null);
   const [imageChoice, setImageChoice] = useState(REFINE_IMAGE_CANDIDATES[0]);
   const [textEdits, setTextEdits] = useState({});
@@ -962,7 +964,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
     setSelection(null);
     setLayoutProposal(null);
     setPanel("edit");
-    if (material?.kind !== "image" && material?.kind !== "decor") return;
+    if (!material) return;
     const point = pointFromEvent(e);
     if (!point) return;
     setGesture({ type: "move", id, start: point, origin: layouts[id] });
@@ -1019,7 +1021,15 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
   const generateLayout = () => {
     if (!selection) return;
     setLayoutProposal(buildRefineLayoutProposal(selectionDraft, selectedRegion));
+    setProposalOpen(true);
     setPanel("edit");
+  };
+
+  const reviseLayoutProposal = () => {
+    if (!selection) return;
+    const nextIntent = [selectionDraft, proposalAdvice].filter((item) => item.trim()).join("；修改建议：");
+    setLayoutProposal(buildRefineLayoutProposal(nextIntent, selectedRegion));
+    setProposalOpen(true);
   };
 
   const applyLayoutProposal = () => {
@@ -1033,8 +1043,12 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
     });
     setSelection(null);
     setLayoutProposal(null);
+    setProposalOpen(false);
+    setProposalAdvice("");
     addMsg("sys", `已采纳「${layoutProposal.title}」mock 重构方案，仅调整当前精修画布布局。`);
   };
+
+  const materialCanResize = activeId && layouts[activeId];
 
   return (
     <div
@@ -1079,9 +1093,11 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
                 <span style={{ position: "absolute", left: 44, top: 42, width: 64, height: 6, borderRadius: 3, background: curSec?.c }} />
                 <RefineMaterialBox id="title" active={activeId === "title"} layout={layouts.title} onMouseDown={startMaterialMove}>
                   <div style={{ fontSize: 30, fontWeight: 650, lineHeight: 1.18, color: "var(--color-text-primary)" }}>{displayTitle}</div>
+                  {activeId === "title" && <button type="button" aria-label="缩放标题文本框" onMouseDown={(e) => startResize(e, "title")} style={resizeHandleStyle} />}
                 </RefineMaterialBox>
                 <RefineMaterialBox id="section" active={activeId === "section"} layout={layouts.section} onMouseDown={startMaterialMove}>
                   <div style={{ fontSize: 14, color: "var(--color-text-tertiary)" }}>{curSec?.title} · {curSec?.sub}</div>
+                  {activeId === "section" && <button type="button" aria-label="缩放章节说明文本框" onMouseDown={(e) => startResize(e, "section")} style={resizeHandleStyle} />}
                 </RefineMaterialBox>
                 <RefineMaterialBox id="badge" active={activeId === "badge"} layout={layouts.badge} onMouseDown={startMaterialMove}>
                   <div style={{ ...S.visualBadge, height: "100%", background: curSec?.bg, borderColor: curSec?.bd, color: curSec?.c }}>
@@ -1090,6 +1106,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
                 </RefineMaterialBox>
                 <RefineMaterialBox id="body" active={activeId === "body"} layout={layouts.body} onMouseDown={startMaterialMove}>
                   <div style={{ fontSize: 17, lineHeight: 1.8, color: "var(--color-text-secondary)" }}>{displayBody}</div>
+                  {activeId === "body" && <button type="button" aria-label="缩放正文文本框" onMouseDown={(e) => startResize(e, "body")} style={resizeHandleStyle} />}
                 </RefineMaterialBox>
                 <RefineMaterialBox id="visual" active={activeId === "visual"} layout={layouts.visual} onMouseDown={startMaterialMove}>
                   <div style={{ ...S.mockVisual, height: "100%", minHeight: 0, background: imageChoice.tint || curSec?.bg, borderColor: curSec?.bd }}>
@@ -1129,7 +1146,7 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
               {selection ? `已圈出 ${selectedMaterials.length || 1} 个问题区域` : activeMaterial ? `当前素材：${activeMaterial.label}` : "点击素材或圈出区域"}
             </span>
             <span style={S.intentSuggestion}>
-              {selection ? "输入要求后生成布局重构方案" : activeMaterial?.kind === "image" ? "图片素材可替换、拖动和缩放" : activeMaterial?.kind === "decor" ? "装饰素材可拖动调整位置" : "文本素材可直接编辑或 AI 润色"}
+              {selection ? "输入要求后生成布局重构方案" : activeMaterial?.kind === "image" ? "图片素材可替换、拖动和缩放" : activeMaterial?.kind === "decor" ? "装饰素材可拖动调整位置" : "文本素材可编辑、拖动和缩放"}
             </span>
             {selection && (
               <button type="button" onClick={generateLayout} style={{ ...S.approveBtn, width: 128 }}>
@@ -1177,8 +1194,13 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
                     value={selectionDraft}
                     onChange={setSelectionDraft}
                     proposal={layoutProposal}
+                    open={proposalOpen}
+                    onOpen={setProposalOpen}
+                    advice={proposalAdvice}
+                    onAdvice={setProposalAdvice}
                     selectedRegion={selectedRegion}
                     onGenerate={generateLayout}
+                    onRevise={reviseLayoutProposal}
                     onApply={applyLayoutProposal}
                   />
                 ) : activeMaterial?.kind === "image" ? (
@@ -1200,6 +1222,8 @@ function AIRefinePage({ secs, sel, selPage, rightOpen, vers, curV, restore, addM
                     onPolish={polishText}
                     intent={selectionDraft}
                     onIntent={setSelectionDraft}
+                    layout={layouts[activeId] || layouts.title}
+                    onResize={(delta) => materialCanResize && updateLayout(activeId, { w: layouts[activeId].w + delta.w, h: layouts[activeId].h + delta.h })}
                   />
                 )}
               </div>
@@ -1226,7 +1250,7 @@ function RefineMaterialBox({ id, active, layout, onMouseDown, children }) {
         boxShadow: active ? "0 0 0 3px rgba(127,119,221,0.12)" : "none",
         borderRadius: 8,
         padding: active ? 4 : 0,
-        cursor: id === "visual" ? "move" : "pointer",
+        cursor: "move",
         overflow: "hidden",
       }}
     >
@@ -1235,7 +1259,7 @@ function RefineMaterialBox({ id, active, layout, onMouseDown, children }) {
   );
 }
 
-function TextRefinePanel({ activeId, title, body, onTitle, onBody, onPolish, intent, onIntent }) {
+function TextRefinePanel({ activeId, title, body, onTitle, onBody, onPolish, intent, onIntent, layout, onResize }) {
   const editingBody = activeId === "body";
   return (
     <>
@@ -1255,6 +1279,14 @@ function TextRefinePanel({ activeId, title, body, onTitle, onBody, onPolish, int
       <button type="button" onClick={() => onPolish(editingBody ? "body" : "title")} style={S.approveBtn}>
         <Sparkles size={13} /> AI 润色{editingBody ? "正文" : "标题"}
       </button>
+      <div style={{ ...S.agentBlock, marginTop: 2 }}>
+        <span style={S.agentLabel}>文本框尺寸</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button type="button" onClick={() => onResize({ w: -24, h: -12 })} style={S.rejectBtn}>缩小</button>
+          <button type="button" onClick={() => onResize({ w: 24, h: 12 })} style={S.approveBtn}>放大</button>
+        </div>
+        <span style={S.intentSuggestion}>当前 {Math.round(layout.w)} x {Math.round(layout.h)}，也可直接拖动画布素材并拉右下角。</span>
+      </div>
     </>
   );
 }
@@ -1314,7 +1346,7 @@ function DecorRefinePanel({ layout, onResize }) {
   );
 }
 
-function SelectionRefinePanel({ value, onChange, proposal, selectedRegion, onGenerate, onApply }) {
+function SelectionRefinePanel({ value, onChange, proposal, open, onOpen, advice, onAdvice, selectedRegion, onGenerate, onRevise, onApply }) {
   return (
     <>
       <PanelTitle icon={<MousePointer2 size={14} />} title="框选精修" />
@@ -1330,7 +1362,14 @@ function SelectionRefinePanel({ value, onChange, proposal, selectedRegion, onGen
       </button>
       {proposal && (
         <div className="anim-fade-up" style={S.proposalCard}>
-          <div style={{ fontSize: 12, fontWeight: 650 }}>{proposal.title}</div>
+          <button
+            type="button"
+            onClick={() => onOpen(!open)}
+            style={{ border: 0, background: "transparent", padding: 0, textAlign: "left", fontFamily: "inherit", cursor: "pointer" }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 650 }}>{proposal.title}</div>
+            <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", marginTop: 2 }}>{open ? "收起详情" : "点开查看方案详情"}</div>
+          </button>
           <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", lineHeight: 1.6 }}>{proposal.summary}</div>
           <div style={S.proposalImage}>
             <div style={{ width: "58%", height: 10, borderRadius: 5, background: "#7F77DD" }} />
@@ -1339,6 +1378,27 @@ function SelectionRefinePanel({ value, onChange, proposal, selectedRegion, onGen
               <span style={{ height: 58, borderRadius: 7, background: "#E6F1FB", border: "1px solid #B5D4F4" }} />
             </div>
           </div>
+          {open && (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "grid", gap: 5 }}>
+                {Object.entries(proposal.patch).map(([id, rect]) => (
+                  <div key={id} style={{ display: "grid", gridTemplateColumns: "64px minmax(0,1fr)", gap: 6, fontSize: 10, color: "var(--color-text-secondary)" }}>
+                    <span style={{ fontWeight: 650 }}>{materialLabel(id)}</span>
+                    <span>x {rect.x} · y {rect.y} · {rect.w} x {rect.h}</span>
+                  </div>
+                ))}
+              </div>
+              <textarea
+                value={advice}
+                onChange={(e) => onAdvice(e.target.value)}
+                placeholder="继续给这个方案提修改建议，例如：标题再小一点、图片不要遮住正文、留白更多。"
+                style={{ ...S.intentInput, minHeight: 76 }}
+              />
+              <button type="button" onClick={onRevise} style={S.rejectBtn}>
+                <Wand2 size={13} /> 按建议再生成
+              </button>
+            </div>
+          )}
           <button type="button" onClick={onApply} style={S.approveBtn}>
             <Check size={13} /> 采纳重构
           </button>
@@ -1346,6 +1406,10 @@ function SelectionRefinePanel({ value, onChange, proposal, selectedRegion, onGen
       )}
     </>
   );
+}
+
+function materialLabel(id) {
+  return REFINE_MATERIAL_DEFS.find((item) => item.id === id)?.label || id;
 }
 
 function PanelTitle({ icon, title }) {
@@ -1391,8 +1455,8 @@ function cloneRefineLayouts() {
 }
 
 function clampLayout(rect) {
-  const w = Math.min(360, Math.max(80, rect.w));
-  const h = Math.min(260, Math.max(34, rect.h));
+  const w = Math.min(640, Math.max(80, rect.w));
+  const h = Math.min(320, Math.max(34, rect.h));
   return {
     x: Math.min(720 - w - 24, Math.max(24, rect.x)),
     y: Math.min(450 - h - 24, Math.max(24, rect.y)),
