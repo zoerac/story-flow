@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Image, Minus, Plus, Search, Sparkles, Star, Type } from "lucide-react";
+import { ArrowLeft, ArrowRight, Image, Minus, Plus, Save, Search, Sparkles, Star, Type } from "lucide-react";
 import { ChatPanel } from "./components/ChatPanel";
 import { Intro } from "./components/Intro";
 import { StorylinePanel } from "./components/StorylinePanel";
@@ -117,7 +117,7 @@ function App() {
               vers={story.vers}
               curV={story.curV}
               restore={handleRestore}
-              saveVersion={story.saveVersion}
+              commitVersion={story.commitVersion}
               toggleSaved={story.toggleSaved}
               deleteVersion={story.deleteVersion}
               onBack={() => handleStageJump("structure")}
@@ -575,6 +575,21 @@ const S = {
     fontSize: 11,
     cursor: "pointer",
   },
+  saveRefineBtn: {
+    height: 28,
+    borderRadius: 6,
+    border: "1px solid #CECBF6",
+    background: "#EEEDFE",
+    color: "#3C3489",
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    padding: "0 10px",
+    fontSize: 11,
+    fontWeight: 650,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
   zoomBtn: {
     width: 26,
     height: 26,
@@ -734,6 +749,20 @@ const S = {
     fontSize: 11,
     fontWeight: 650,
     whiteSpace: "nowrap",
+  },
+  generateRefineBtn: {
+    height: 30,
+    minWidth: 104,
+    border: 0,
+    borderRadius: 7,
+    background: "#7F77DD",
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: 650,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
   },
   intentSuggestion: {
     minWidth: 0,
@@ -1072,7 +1101,7 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage, visual 
   );
 }
 
-function AIRefinePage({ secs, sel, selPage, visual, rightOpen, vers, curV, restore, saveVersion, toggleSaved, deleteVersion, onBack }) {
+function AIRefinePage({ secs, sel, selPage, visual, rightOpen, vers, curV, restore, commitVersion, toggleSaved, deleteVersion, onBack }) {
   // 把主视觉阶段所选模板映射为图片素材候选，并置顶为默认项（用户仍可切换其余候选）
   const visualChoice = visual
     ? { id: visual.id, title: visual.title, image: visual.image, tint: visual.bg, accent: visual.accent }
@@ -1085,23 +1114,24 @@ function AIRefinePage({ secs, sel, selPage, visual, rightOpen, vers, curV, resto
   const [rightTab, setRightTab] = useState("materials");
   const [panelW, setPanelW] = useState(240);
   const [editNote, setEditNote] = useState("");
+  const [generatedIntent, setGeneratedIntent] = useState("");
+  const [proposalBatch, setProposalBatch] = useState([]);
   const [selRect, setSelRect] = useState(null);
   const [gesture, setGesture] = useState(null);
   const [imageChoice, setImageChoice] = useState(imageCandidates[0]);
-  const [textEdits, setTextEdits] = useState({});
+  const [textEdits, setTextEdits] = useState({ vid: curV, pages: {} });
   const [layouts, setLayouts] = useState(() => cloneRefineLayouts());
   const canvasRef = useRef(null);
   const viewportRef = useRef(null);
   const curSec = secs[sel];
   const curPage = curSec?.pages[selPage] || curSec?.pages[0];
   const pageKey = curPage?.id || "page";
-  const pageText = textEdits[pageKey] || {};
+  const pageText = textEdits.vid === curV ? textEdits.pages[pageKey] || {} : {};
   const displayTitle = pageText.title ?? curPage?.h ?? "当前页标题";
   const displayBody = pageText.body ?? curPage?.b ?? "当前页正文";
   const activeMaterial = REFINE_MATERIAL_DEFS.find((item) => item.id === activeId);
   const selectedMaterialCount = countSelectedMaterials(selRect, layouts);
   const proposalRegion = selRect ? classifyRegion(selRect) : materialRegion(activeId);
-  const proposals = buildRefineProposals(editNote, proposalRegion, selPage, { ...curPage, h: displayTitle, b: displayBody }, curSec);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -1131,8 +1161,54 @@ function AIRefinePage({ secs, sel, selPage, visual, rightOpen, vers, curV, resto
   }, [panelW, rightOpen]);
 
   const setZoomClamped = (next) => setZoom((prev) => Math.min(1.8, Math.max(0.35, typeof next === "function" ? next(prev) : next)));
-  const updateText = (kind, value) => setTextEdits((prev) => ({ ...prev, [pageKey]: { ...prev[pageKey], [kind]: value } }));
+  const updateText = (kind, value) =>
+    setTextEdits((prev) => {
+      const pages = prev.vid === curV ? prev.pages : {};
+      return { vid: curV, pages: { ...pages, [pageKey]: { ...pages[pageKey], [kind]: value } } };
+    });
   const updateLayout = (id, patch) => setLayouts((prev) => ({ ...prev, [id]: clampLayout({ ...prev[id], ...patch }) }));
+  const materializeCurrentPage = (nextTitle = displayTitle, nextBody = displayBody) =>
+    materializeRefinePage(secs, sel, selPage, nextTitle, nextBody);
+
+  const generateProposals = () => {
+    const intent = editNote.trim();
+    if (!intent || !curPage) return;
+    const batch = buildRefineProposals(intent, proposalRegion, selPage, { ...curPage, h: displayTitle, b: displayBody }, curSec, imageCandidates);
+    setGeneratedIntent(intent);
+    setProposalBatch(batch);
+    setRightTab("proposals");
+  };
+
+  const saveRefineVersion = () => {
+    const nextSecs = materializeCurrentPage();
+    commitVersion?.("AI精修·手动保存", nextSecs, { stage: "refine", kind: "refine" });
+  };
+
+  const adoptProposal = (proposal) => {
+    if (!proposal || !curPage) return;
+    let nextTitle = displayTitle;
+    let nextBody = displayBody;
+
+    if (proposal.kind === "title") {
+      nextTitle = proposal.nextTitle;
+      updateText("title", nextTitle);
+      setActiveId("title");
+    } else if (proposal.kind === "body") {
+      nextBody = proposal.nextBody;
+      updateText("body", nextBody);
+      setActiveId("body");
+    } else if (proposal.kind === "visual") {
+      nextBody = proposal.nextBody;
+      updateText("body", nextBody);
+      setImageChoice(proposal.imageChoice || imageCandidates[0]);
+      updateLayout("visual", proposal.layoutPatch || { x: 404, y: 166, w: 284, h: 216 });
+      setActiveId("visual");
+    }
+
+    const nextSecs = materializeCurrentPage(nextTitle, nextBody);
+    commitVersion?.(proposal.commitLabel, nextSecs, { stage: "refine", kind: "refine" });
+    setRightTab("versions");
+  };
 
   const pointFromEvent = (e) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -1246,6 +1322,9 @@ function AIRefinePage({ secs, sel, selPage, visual, rightOpen, vers, curV, resto
           <div style={S.refineSectionHead}>
             <span>PPT</span>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+              <button type="button" onClick={saveRefineVersion} style={S.saveRefineBtn}>
+                <Save size={13} /> 保存当前精修为版本
+              </button>
               <button type="button" onClick={onBack} style={S.backBtn}>
                 <ArrowLeft size={14} /> 返回结构编辑
               </button>
@@ -1349,6 +1428,23 @@ function AIRefinePage({ secs, sel, selPage, visual, rightOpen, vers, curV, resto
               placeholder="记录本页精修要求。当前版本只演示素材直接操作：拖动素材、编辑文字、替换图片、缩放文本框或图片。"
               style={{ ...S.intentInput, minHeight: 48 }}
             />
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                type="button"
+                onClick={generateProposals}
+                disabled={!editNote.trim()}
+                style={{
+                  ...S.generateRefineBtn,
+                  opacity: editNote.trim() ? 1 : 0.48,
+                  cursor: editNote.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                <Sparkles size={13} /> 生成方案
+              </button>
+              <span style={{ ...S.intentSuggestion, flex: 1 }}>
+                {generatedIntent ? `已生成：${generatedIntent}` : "输入提示词后点击生成，AI方案不会随输入实时刷新。"}
+              </span>
+            </div>
           </div>
         </section>
       </div>
@@ -1391,17 +1487,19 @@ function AIRefinePage({ secs, sel, selPage, visual, rightOpen, vers, curV, resto
                 curV={curV}
                 secs={secs}
                 restore={restore}
-                saveVersion={() => saveVersion("AI精修·手动保存", { stage: "refine", kind: "refine" })}
                 toggleSaved={toggleSaved}
                 deleteVersion={deleteVersion}
+                hideSaveBar
               />
             ) : rightTab === "proposals" ? (
               <ProposalPreviewPanel
                 intent={editNote}
-                proposals={proposals}
+                generatedIntent={generatedIntent}
+                proposals={proposalBatch}
                 curSec={curSec}
                 activeMaterial={activeMaterial}
                 selectedMaterialCount={selectedMaterialCount}
+                onAdopt={adoptProposal}
               />
             ) : (
               <div style={{ height: "100%", padding: 12, display: "grid", gap: 12, alignContent: "start", overflowY: "auto" }}>
@@ -1574,12 +1672,18 @@ function DecorRefinePanel({ layout, onResize }) {
   );
 }
 
-function ProposalPreviewPanel({ intent, proposals, curSec, activeMaterial, selectedMaterialCount }) {
+function ProposalPreviewPanel({ intent, generatedIntent, proposals, curSec, activeMaterial, selectedMaterialCount, onAdopt }) {
+  const hasPrompt = Boolean(intent.trim());
+  const hasGenerated = Boolean(generatedIntent && proposals.length);
   return (
     <div style={{ height: "100%", padding: 12, display: "grid", gap: 10, overflowY: "auto" }}>
-      {!intent.trim() ? (
+      {!hasPrompt ? (
         <div style={{ border: "1px dashed var(--color-border-tertiary)", borderRadius: 8, padding: 14, color: "var(--color-text-tertiary)", fontSize: 11, lineHeight: 1.7, background: "var(--color-background-secondary)" }}>
-          在底部输入精修要求后，这里会像 main 分支一样实时展示 3 张 mock AI 方案图。当前焦点：{selectedMaterialCount ? `框选区域（${selectedMaterialCount} 个素材）` : activeMaterial?.label || "当前页"}。
+          在底部输入精修要求并点击“生成方案”后，这里会展示 3 张 mock AI 方案图。当前焦点：{selectedMaterialCount ? `框选区域（${selectedMaterialCount} 个素材）` : activeMaterial?.label || "当前页"}。
+        </div>
+      ) : !hasGenerated ? (
+        <div style={{ border: "1px dashed var(--color-border-tertiary)", borderRadius: 8, padding: 14, color: "var(--color-text-tertiary)", fontSize: 11, lineHeight: 1.7, background: "var(--color-background-secondary)" }}>
+          已记录提示词。点击底部“生成方案”后，AI方案会基于当前选区、素材和页面内容生成；继续输入不会自动刷新已有方案。
         </div>
       ) : (
         proposals.map((proposal) => (
@@ -1587,6 +1691,7 @@ function ProposalPreviewPanel({ intent, proposals, curSec, activeMaterial, selec
             key={proposal.index}
             proposal={proposal}
             curSec={curSec}
+            onAdopt={onAdopt}
           />
         ))
       )}
@@ -1594,7 +1699,7 @@ function ProposalPreviewPanel({ intent, proposals, curSec, activeMaterial, selec
   );
 }
 
-function RefineProposalPreviewCard({ proposal, curSec }) {
+function RefineProposalPreviewCard({ proposal, curSec, onAdopt }) {
   return (
     <div className="anim-fade-up" style={{ animationDelay: `${(proposal.index - 1) * 80}ms`, ...S.proposalCard }}>
       <div style={{ ...S.proposalImage, borderColor: proposal.border, background: proposal.bg }}>
@@ -1618,6 +1723,9 @@ function RefineProposalPreviewCard({ proposal, curSec }) {
         <div style={{ fontSize: 12, fontWeight: 650 }}>方案 {proposal.index} · {proposal.name}</div>
         <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", lineHeight: 1.5 }}>{proposal.summary}</div>
       </div>
+      <button type="button" onClick={() => onAdopt?.(proposal)} style={S.approveBtn}>
+        <Sparkles size={12} /> 采纳
+      </button>
     </div>
   );
 }
@@ -1718,7 +1826,19 @@ function textMaterialStyle(layout, extra = {}) {
   };
 }
 
-function buildRefineProposals(intent, region, selPage, curPage, curSec) {
+function materializeRefinePage(secs, sel, selPage, title, body) {
+  return secs.map((section, sectionIndex) => {
+    if (sectionIndex !== sel) return section;
+    return {
+      ...section,
+      pages: section.pages.map((page, pageIndex) =>
+        pageIndex === selPage ? { ...page, h: title, b: body } : page,
+      ),
+    };
+  });
+}
+
+function buildRefineProposals(intent, region, selPage, curPage, curSec, imageCandidates = REFINE_IMAGE_CANDIDATES) {
   const text = intent.trim();
   if (!text || !curPage) return [];
 
@@ -1729,22 +1849,28 @@ function buildRefineProposals(intent, region, selPage, curPage, curSec) {
   const bg = curSec?.bg || "#EEEDFE";
   const border = curSec?.bd || "#CECBF6";
   const shortIntent = text.length > 20 ? `${text.slice(0, 20)}...` : text;
+  const titleVariant = refineTitle(baseTitle, text);
+  const bodyVariant = refineBody(baseBody, text);
+  const visualImageIndex = Math.abs([...text].reduce((sum, char) => sum + char.charCodeAt(0), 0)) % imageCandidates.length;
+  const visualChoice = imageCandidates[visualImageIndex];
+  const visualBody = refineVisualBody(baseBody, shortIntent, visualChoice.title);
 
-  return [
+  const proposals = [
     {
-      index: 1,
       kind: "title",
       name: "结论强化",
       pageNo: selPage + 1,
       accent,
       bg: "#FAFAFF",
       border,
-      previewTitle: refineTitle(baseTitle, text),
+      previewTitle: titleVariant,
       previewBody: baseBody,
+      nextTitle: titleVariant,
+      nextBody: baseBody,
+      commitLabel: "采纳AI方案·结论强化",
       summary: `围绕「${shortIntent}」强化${target}，让标题更像可直接汇报的判断。`,
     },
     {
-      index: 2,
       kind: "body",
       name: "正文压缩",
       pageNo: selPage + 1,
@@ -1752,28 +1878,78 @@ function buildRefineProposals(intent, region, selPage, curPage, curSec) {
       bg: "var(--color-background-primary)",
       border: "#9FE1CB",
       previewTitle: baseTitle,
-      previewBody: `按「${shortIntent}」重写：先给结论，再保留关键因果与数据锚点。`,
+      previewBody: bodyVariant,
+      nextTitle: baseTitle,
+      nextBody: bodyVariant,
+      commitLabel: "采纳AI方案·正文压缩",
       summary: `保留原页信息骨架，压缩${target}文字并突出汇报口径。`,
     },
     {
-      index: 3,
       kind: "visual",
       name: "视觉重绘",
       pageNo: selPage + 1,
-      accent: "#378ADD",
-      bg,
+      accent: visualChoice.accent || "#378ADD",
+      bg: visualChoice.tint || bg,
       border: "#B5D4F4",
       previewTitle: baseTitle,
-      previewBody: "将局部素材组织成对比卡片，强化差异、趋势与结论标注。",
+      previewBody: `采用「${visualChoice.title}」重绘：突出差异、趋势与结论标注。`,
+      nextTitle: baseTitle,
+      nextBody: visualBody,
+      imageChoice: visualChoice,
+      layoutPatch: visualLayoutForIntent(text),
+      commitLabel: "采纳AI方案·视觉重绘",
       summary: `把${target}转成图片式数据视觉，适合右侧素材区或整页强调。`,
     },
   ];
+
+  return sortRefineProposals(proposals, text, region).map((proposal, index) => ({ ...proposal, index: index + 1 }));
 }
 
 function refineTitle(title, intent) {
   const cleanIntent = intent.replace(/[。！？.!?]+$/u, "");
   if (title.includes("：")) return `${title} · ${cleanIntent}`;
   return `${title}：${cleanIntent}`;
+}
+
+function refineBody(body, intent) {
+  const cleanIntent = intent.replace(/[。！？.!?]+$/u, "");
+  const base = body ? body.replace(/\s+/g, " ").trim() : "补充当前页关键论点。";
+  return `结论先行：${cleanIntent}。保留原页核心信息：${base}`;
+}
+
+function refineVisualBody(body, intent, visualTitle) {
+  const base = body ? body.replace(/\s+/g, " ").trim() : "当前页信息已重组为视觉化表达。";
+  return `${base}｜视觉重绘：使用「${visualTitle}」围绕「${intent}」强化局部层级、对比卡片和结论标注。`;
+}
+
+function sortRefineProposals(proposals, intent, region) {
+  const text = intent.toLowerCase();
+  const priority = {
+    title: /标题|题目|结论|判断|观点|headline|title/.test(text) ? 8 : 0,
+    body: /正文|文案|压缩|精简|改写|表达|copy|body/.test(text) ? 8 : 0,
+    visual: /视觉|图片|图表|配图|布局|重绘|素材|visual|image|chart/.test(text) ? 8 : 0,
+  };
+  if (region && priority[region] !== undefined) priority[region] += 3;
+
+  const seed = [...intent].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return [...proposals].sort((a, b) => {
+    const diff = (priority[b.kind] || 0) - (priority[a.kind] || 0);
+    if (diff) return diff;
+    return ((seed + kindRank(a.kind)) % 7) - ((seed + kindRank(b.kind)) % 7);
+  });
+}
+
+function kindRank(kind) {
+  if (kind === "title") return 1;
+  if (kind === "body") return 3;
+  return 5;
+}
+
+function visualLayoutForIntent(intent) {
+  const text = intent.toLowerCase();
+  if (/大图|放大|突出|整页|hero|large/.test(text)) return { x: 394, y: 156, w: 300, h: 240 };
+  if (/紧凑|缩小|右侧|局部|compact/.test(text)) return { x: 462, y: 196, w: 204, h: 162 };
+  return { x: 418, y: 170, w: 270, h: 214 };
 }
 
 function materialRegion(id) {

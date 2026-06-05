@@ -49,7 +49,7 @@ function useGraphLayout(vers) {
   }, [vers]);
 }
 
-export function VersionTree({ vers, curV, secs, restore, saveVersion, toggleSaved, deleteVersion }) {
+export function VersionTree({ vers, curV, secs, restore, saveVersion, toggleSaved, deleteVersion, hideSaveBar = false }) {
   const [selVid, setSelVid] = useState(curV);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -189,7 +189,7 @@ export function VersionTree({ vers, curV, secs, restore, saveVersion, toggleSave
       </div>
 
       {/* 手动保存：当前工作态相对当前版本有未保存改动时出现 */}
-      {hasUnsaved && (
+      {!hideSaveBar && hasUnsaved && (
         <button type="button" onClick={() => saveVersion?.()} style={saveBar}>
           <Save size={13} /> 保存当前精修为版本
         </button>
