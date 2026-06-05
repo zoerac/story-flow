@@ -28,6 +28,10 @@ export function useStoryflow() {
       from: "ai",
       text: "你好！我已根据你的需求生成了 12 页演示文稿。左侧是自动提取的故事线结构——直接拖拽节点即可调整叙事顺序，我会实时适配所有内容。",
     },
+    {
+      from: "ai",
+      text: "想看某一页？直接点左侧故事树的任意子页就能跳到该页幻灯——不必像传统 PPT 逐页翻找。把整章拖进这个对话框，还能就它单独深聊。",
+    },
   ]);
   const [thinking, setThinking] = useState(false);
   const vc = useRef(1);

@@ -1,6 +1,6 @@
-import { GitFork, Maximize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Sparkles } from "lucide-react";
+import { GitFork, HelpCircle, Maximize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Sparkles } from "lucide-react";
 
-export function Toolbar({ leftOpen, rightOpen, setLeftOpen, setRightOpen, activeStage = "structure", onStageJump, onOpenRefine }) {
+export function Toolbar({ leftOpen, rightOpen, setLeftOpen, setRightOpen, activeStage = "structure", onStageJump, onOpenRefine, showGuide = false, guideOn = false, guidePulse = false, onToggleGuide }) {
   const focused = !leftOpen && !rightOpen;
   const stages = [
     { id: "intent", label: "1 意图对齐" },
@@ -42,6 +42,32 @@ export function Toolbar({ leftOpen, rightOpen, setLeftOpen, setRightOpen, active
         })}
       </div>
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
+        {showGuide && (
+          <button
+            type="button"
+            onClick={onToggleGuide}
+            title={guideOn ? "关闭操作引导" : "唤起操作引导"}
+            aria-label={guideOn ? "关闭操作引导" : "唤起操作引导"}
+            className={guidePulse ? "anim-coach-pulse" : undefined}
+            style={{
+              height: 24,
+              padding: "0 9px",
+              borderRadius: 6,
+              border: `1px solid ${guideOn || guidePulse ? "#CECBF6" : "var(--color-border-tertiary)"}`,
+              background: guideOn || guidePulse ? "#EEEDFE" : "var(--color-background-primary)",
+              color: guideOn || guidePulse ? "#3C3489" : "var(--color-text-secondary)",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 11,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <HelpCircle size={12} />
+            引导
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpenRefine}
