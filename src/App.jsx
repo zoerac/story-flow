@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Image, Minus, Plus, Search, Sparkles, Star, Type
 import { ChatPanel } from "./components/ChatPanel";
 import { Intro } from "./components/Intro";
 import { StorylinePanel } from "./components/StorylinePanel";
+import { StructureCoachmarks } from "./components/StructureCoachmarks";
 import { Toolbar } from "./components/Toolbar";
 import { VersionTree } from "./components/VersionTree";
 import {
@@ -16,19 +17,39 @@ import {
 } from "./data/mock";
 import { useStoryflow } from "./hooks/useStoryflow";
 
+const COACH_KEY = "sf_coach_structure_v1";
+
 function App() {
   const story = useStoryflow();
   const [showIntro, setShowIntro] = useState(true);
   const [view, setView] = useState("intent");
   const [transitioning, setTransitioning] = useState(false);
   const [layout, setLayout] = useState({
-    leftW: 220,
+    leftW: 248,
     rightW: 190,
     leftOpen: true,
-    rightOpen: true,
+    // 版本树默认收起，把横向空间让给故事线与幻灯；可由工具栏右栏开关随时唤出
+    rightOpen: false,
+  });
+  // 结构编辑页一次性引导：localStorage 记忆已读，首次进入才浮现
+  const [coachDone, setCoachDone] = useState(() => {
+    try {
+      return localStorage.getItem(COACH_KEY) === "1";
+    } catch {
+      return false;
+    }
   });
   const shellRef = useRef(null);
   const currentStage = showIntro ? "intent" : view === "visual" ? "visual" : view === "refine" ? "refine" : "structure";
+
+  const dismissCoach = () => {
+    setCoachDone(true);
+    try {
+      localStorage.setItem(COACH_KEY, "1");
+    } catch {
+      // 忽略隐私模式下的写入失败
+    }
+  };
 
   const setStageView = (stage) => {
     setTransitioning(true);
@@ -143,6 +164,7 @@ function App() {
             className="anim-fade-up"
             style={{
               ...S.root,
+              position: "relative",
               gridTemplateColumns: `${layout.leftOpen ? layout.leftW : 0}px ${layout.leftOpen ? 4 : 0}px minmax(0,1fr) ${layout.rightOpen ? 4 : 0}px ${layout.rightOpen ? layout.rightW : 0}px`,
             }}
           >
@@ -162,19 +184,23 @@ function App() {
                   onMergeSection={story.mergeSection}
                   onSplitPage={story.splitPageOut}
                   commitVersion={commitStructureVersion}
+                  dragHint={!coachDone}
+                  onInteract={dismissCoach}
                 />
               )}
             </div>
             <ResizeBar hidden={!layout.leftOpen} onMouseDown={startResize("left")} />
             <div style={S.col}>
-              <StructureSlidePreview
-                secs={story.secs}
-                sel={story.sel}
-                setSel={story.setSel}
-                selPage={story.selPage}
-                setSelPage={story.setSelPage}
-                visual={story.visual}
-              />
+              <div style={S.slideStage}>
+                <StructureSlidePreview
+                  secs={story.secs}
+                  sel={story.sel}
+                  setSel={story.setSel}
+                  selPage={story.selPage}
+                  setSelPage={story.setSelPage}
+                  visual={story.visual}
+                />
+              </div>
               <ChatPanel
                 msgs={story.msgs}
                 send={story.send}
@@ -189,6 +215,9 @@ function App() {
               />
             </div>
             <ResizeBar hidden={!layout.rightOpen} onMouseDown={startResize("right")} />
+            {!coachDone && (
+              <StructureCoachmarks leftOpen={layout.leftOpen} leftW={layout.leftW} onDismiss={dismissCoach} />
+            )}
             <div style={{ minWidth: 0, overflow: "hidden" }}>
               {layout.rightOpen && (
                 <VersionTree
@@ -419,11 +448,20 @@ const S = {
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
+    position: "relative",
+    background: "var(--color-background-tertiary)",
+  },
+  // 幻灯舞台：占满整列高度并垂直居中幻灯，底部留白让出浮层对话框空间
+  slideStage: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    padding: "16px 16px 104px",
   },
   previewWrap: {
-    padding: "14px 16px",
-    background: "var(--color-background-tertiary)",
-    borderBottom: "0.5px solid var(--color-border-tertiary)",
     flexShrink: 0,
     position: "relative",
   },
@@ -431,14 +469,14 @@ const S = {
     background: "var(--color-background-primary)",
     borderRadius: 10,
     border: "0.5px solid var(--color-border-secondary)",
-    padding: "18px 22px",
-    maxWidth: 300,
+    padding: "22px 28px",
+    maxWidth: 380,
     margin: "0 auto",
     aspectRatio: "16/10",
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+    boxShadow: "0 6px 22px rgba(26,25,21,0.1)",
     overflow: "hidden",
   },
   refineRoot: {
@@ -1004,7 +1042,7 @@ function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage, visual 
 
   return (
     <div style={S.previewWrap}>
-      <div key={slideKey} className="anim-pop" style={{ ...S.slideCard, position: "relative" }}>
+      <div key={slideKey} className="anim-page-in" style={{ ...S.slideCard, position: "relative" }}>
         {visual?.image && (
           <>
             <img

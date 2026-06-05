@@ -15,6 +15,8 @@ export function StorylinePanel({
   onMergeSection,
   onSplitPage,
   commitVersion,
+  dragHint = false,
+  onInteract,
 }) {
   const [openIds, setOpenIds] = useState(() => new Set([secs[0]?.id].filter(Boolean)));
   const [pageDrag, setPageDrag] = useState(null);
@@ -67,7 +69,10 @@ export function StorylinePanel({
             key={s.id}
             className="anim-fade-up"
             draggable
-            onDragStart={() => setDragI(i)}
+            onDragStart={() => {
+              setDragI(i);
+              onInteract?.();
+            }}
             onDragOver={(e) => {
               e.preventDefault();
               // 指针落在卡片中间 ~40% → 合并为子页；上下边缘 → 重排序
@@ -102,6 +107,7 @@ export function StorylinePanel({
             onClick={() => {
               setSel(i);
               setSelPage(0);
+              onInteract?.();
             }}
             style={{
               animationDelay: `${Math.min(i * 40, 240)}ms`,
@@ -152,7 +158,11 @@ export function StorylinePanel({
               >
                 {openIds.has(s.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               </button>
-              <GripVertical size={12} style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }} />
+              <GripVertical
+                size={12}
+                className={dragHint && i === 0 ? "anim-drag-hint" : undefined}
+                style={{ color: dragHint && i === 0 ? "#7F77DD" : "var(--color-text-tertiary)", flexShrink: 0 }}
+              />
               <div style={{ width: 7, height: 7, borderRadius: "50%", background: s.c, flexShrink: 0 }} />
               <span style={{ fontSize: 12, fontWeight: 500 }}>{s.title}</span>
               {mergeOverI === i && dragI !== null && dragI !== i && (
@@ -200,6 +210,7 @@ export function StorylinePanel({
                         e.stopPropagation();
                         setSel(i);
                         setSelPage(pageIndex);
+                        onInteract?.();
                       }}
                       style={{
                         display: "flex",
