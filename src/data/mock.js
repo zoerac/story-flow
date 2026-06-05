@@ -418,25 +418,10 @@ export function visualRecommendationReason(visual, intent) {
   return `匹配：${terms.join("、")}。适合把「${visual.title}」作为初稿的视觉基调。`;
 }
 
-export function selectMockDraftForVisual(visual) {
-  if (!visual) return cloneSections(INIT);
-
-  const haystack = `${visual.title} ${visual.style} ${(visual.tags || []).join(" ")}`.toLowerCase();
-  return selectMockDraftByText(haystack);
-}
-
-export function selectMockDraftByText(intent) {
-  const haystack = String(intent || "").toLowerCase();
-  const ranked = MOCK_STORYLINE_DRAFTS.map((draft) => ({
-    draft,
-    score: draft.keywords.reduce((sum, keyword) => sum + (haystack.includes(keyword.toLowerCase()) ? 1 : 0), 0),
-  })).sort((a, b) => b.score - a.score);
-
-  return cloneSections(ranked[0]?.score > 0 ? ranked[0].draft.sections : INIT);
-}
-
 export function applyVisualToSections(visual, sections = INIT) {
-  const next = visual ? selectMockDraftForVisual(visual) : cloneSections(sections);
+  // 始终沿用意图对齐阶段确定的故事线，只在其上叠加所选主视觉的配色与标注，
+  // 不再按模板标签重新匹配草稿，避免覆盖用户已对齐的结构。
+  const next = cloneSections(sections);
   const base = palettes.find((p) => p.c === visual?.c) || palettes[0];
   const allPalettes = [
     { c: visual?.c || base.c, bg: visual?.bg || base.bg, bd: visual?.bd || base.bd },
