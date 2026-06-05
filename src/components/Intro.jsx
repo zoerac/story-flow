@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, FileText, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ExternalLink, FileText, Sparkles } from "lucide-react";
 import { INTRO_DRAFT_ACKS, INTRO_EXAMPLE, INTRO_EXAMPLES, INTRO_STEPS } from "../data/intro";
 import { buildInitialDraft, refineDraft } from "../lib/introEngine";
 import { pick } from "../data/mock";
 import { IntroStoryline } from "./IntroStoryline";
-import { DocModal } from "./DocModal";
+import productDocUrl from "../../StoryFlow_产品文档.pdf?url";
+
+const GITHUB_URL = "https://github.com/zoerac/story-flow";
 
 export function Intro({ onDone }) {
   const [phase, setPhase] = useState("need"); // need | audience | tone | refine
   const [need, setNeed] = useState("");
   const [answers, setAnswers] = useState({});
   const [bubbles, setBubbles] = useState([]);
-  const [showDoc, setShowDoc] = useState(false);
 
   // 精修阶段状态
   const [draft, setDraft] = useState(null);
@@ -117,8 +118,6 @@ export function Intro({ onDone }) {
         overflow: "auto",
       }}
     >
-      {showDoc && <DocModal onClose={() => setShowDoc(false)} />}
-
       {/* 标题区：精修阶段收窄，给双栏留出空间 */}
       <div style={{ textAlign: "center", width: "min(calc(100vw - 40px), 980px)", flexShrink: 0, boxSizing: "border-box" }}>
         <h1
@@ -149,27 +148,24 @@ export function Intro({ onDone }) {
             用一轮对话对齐演示意图，再把结构、版本与局部精修交给 AI 持续协作。
           </p>
         )}
-        <button
-          type="button"
-          onClick={() => setShowDoc(true)}
-          style={{
-            height: 28,
-            marginTop: isRefine ? 8 : 14,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 5,
-            fontSize: 11,
-            color: "var(--color-text-secondary)",
-            background: "rgba(255,255,255,0.72)",
-            border: "0.5px solid var(--color-border-tertiary)",
-            cursor: "pointer",
-            padding: "0 10px",
-            borderRadius: 7,
-            boxShadow: "0 2px 10px rgba(26,25,21,0.05)",
-          }}
-        >
-          <FileText size={12} /> 产品文档
-        </button>
+        <div style={{ marginTop: isRefine ? 8 : 14, display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+          <a
+            href={productDocUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={S.headerLink}
+          >
+            <FileText size={12} /> 产品文档
+          </a>
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+            style={S.headerLink}
+          >
+            <ExternalLink size={12} /> GitHub
+          </a>
+        </div>
       </div>
 
       {isRefine ? (
@@ -507,6 +503,24 @@ export function Intro({ onDone }) {
     </div>
   );
 }
+
+const S = {
+  headerLink: {
+    height: 28,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    fontSize: 11,
+    color: "var(--color-text-secondary)",
+    background: "rgba(255,255,255,0.72)",
+    border: "0.5px solid var(--color-border-tertiary)",
+    cursor: "pointer",
+    padding: "0 10px",
+    borderRadius: 7,
+    boxShadow: "0 2px 10px rgba(26,25,21,0.05)",
+    textDecoration: "none",
+  },
+};
 
 function AiBubble({ children }) {
   return (
