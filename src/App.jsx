@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Image, Minus, Plus, Save, Search, Sparkles, Star
 import { ChatPanel } from "./components/ChatPanel";
 import { Intro } from "./components/Intro";
 import { StorylinePanel } from "./components/StorylinePanel";
+import { StructureCoachmarks } from "./components/StructureCoachmarks";
 import { Toolbar } from "./components/Toolbar";
 import { VersionTree } from "./components/VersionTree";
 import {
@@ -16,19 +17,49 @@ import {
 } from "./data/mock";
 import { useStoryflow } from "./hooks/useStoryflow";
 
+const COACH_KEY = "sf_coach_structure_v2";
+
 function App() {
   const story = useStoryflow();
   const [showIntro, setShowIntro] = useState(true);
   const [view, setView] = useState("intent");
   const [transitioning, setTransitioning] = useState(false);
   const [layout, setLayout] = useState({
-    leftW: 220,
+    leftW: 248,
     rightW: 190,
     leftOpen: true,
-    rightOpen: true,
+    // 版本树默认收起，把横向空间让给故事线与幻灯；可由工具栏右栏开关随时唤出
+    rightOpen: false,
   });
+  // 结构编辑页操作引导：首次进入先弹「是否需要引导」提示（localStorage 记忆），
+  // 用户可随时点工具栏「引导」按钮再唤起完整引导。
+  const [coachIntroSeen, setCoachIntroSeen] = useState(() => {
+    try {
+      return localStorage.getItem(COACH_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [guideOpen, setGuideOpen] = useState(false);
   const shellRef = useRef(null);
   const currentStage = showIntro ? "intent" : view === "visual" ? "visual" : view === "refine" ? "refine" : "structure";
+
+  const markIntroSeen = () => {
+    setCoachIntroSeen(true);
+    try {
+      localStorage.setItem(COACH_KEY, "1");
+    } catch {
+      // 忽略隐私模式下的写入失败
+    }
+  };
+  const openGuide = () => {
+    setGuideOpen(true);
+    markIntroSeen();
+  };
+  const toggleGuide = () => {
+    setGuideOpen((v) => !v);
+    markIntroSeen();
+  };
 
   const setStageView = (stage) => {
     setTransitioning(true);
@@ -95,6 +126,10 @@ function App() {
           activeStage={currentStage}
           onStageJump={handleStageJump}
           onOpenRefine={() => handleStageJump("refine")}
+          showGuide={currentStage === "structure"}
+          guideOn={guideOpen}
+          guidePulse={currentStage === "structure" && !coachIntroSeen}
+          onToggleGuide={toggleGuide}
         />
         <ThinkingBar visible={transitioning} />
         {/* SLOT:intro */}
@@ -143,38 +178,44 @@ function App() {
             className="anim-fade-up"
             style={{
               ...S.root,
+              position: "relative",
+              // 侧栏收起/展开时平滑过渡列宽，呼应工具栏开关的视觉引导
+              transition: "grid-template-columns var(--motion-slow) var(--ease-out)",
               gridTemplateColumns: `${layout.leftOpen ? layout.leftW : 0}px ${layout.leftOpen ? 4 : 0}px minmax(0,1fr) ${layout.rightOpen ? 4 : 0}px ${layout.rightOpen ? layout.rightW : 0}px`,
             }}
           >
+            {/* 面板常驻挂载，靠列宽 + overflow 裁剪实现平滑收起动效 */}
             <div style={{ minWidth: 0, overflow: "hidden" }}>
-              {layout.leftOpen && (
-                <StorylinePanel
-                  secs={story.secs}
-                  sel={story.sel}
-                  setSel={story.setSel}
-                  selPage={story.selPage}
-                  setSelPage={story.setSelPage}
-                  dragI={story.dragI}
-                  setDragI={story.setDragI}
-                  overI={story.overI}
-                  setOverI={story.setOverI}
-                  onDrop={story.onDrop}
-                  onMergeSection={story.mergeSection}
-                  onSplitPage={story.splitPageOut}
-                  commitVersion={commitStructureVersion}
-                />
-              )}
-            </div>
-            <ResizeBar hidden={!layout.leftOpen} onMouseDown={startResize("left")} />
-            <div style={S.col}>
-              <StructureSlidePreview
+              <StorylinePanel
                 secs={story.secs}
                 sel={story.sel}
                 setSel={story.setSel}
                 selPage={story.selPage}
                 setSelPage={story.setSelPage}
-                visual={story.visual}
+                dragI={story.dragI}
+                setDragI={story.setDragI}
+                overI={story.overI}
+                setOverI={story.setOverI}
+                onDrop={story.onDrop}
+                onMergeSection={story.mergeSection}
+                onSplitPage={story.splitPageOut}
+                commitVersion={commitStructureVersion}
+                dragHint={guideOpen}
+                onInteract={markIntroSeen}
               />
+            </div>
+            <ResizeBar hidden={!layout.leftOpen} onMouseDown={startResize("left")} />
+            <div style={S.col}>
+              <div style={S.slideStage}>
+                <StructureSlidePreview
+                  secs={story.secs}
+                  sel={story.sel}
+                  setSel={story.setSel}
+                  selPage={story.selPage}
+                  setSelPage={story.setSelPage}
+                  visual={story.visual}
+                />
+              </div>
               <ChatPanel
                 msgs={story.msgs}
                 send={story.send}
@@ -190,18 +231,27 @@ function App() {
             </div>
             <ResizeBar hidden={!layout.rightOpen} onMouseDown={startResize("right")} />
             <div style={{ minWidth: 0, overflow: "hidden" }}>
-              {layout.rightOpen && (
-                <VersionTree
-                  vers={story.vers}
-                  curV={story.curV}
-                  secs={story.secs}
-                  restore={handleRestore}
-                  saveVersion={() => story.saveVersion("手动保存", { stage: "structure", kind: "edit" })}
-                  toggleSaved={story.toggleSaved}
-                  deleteVersion={story.deleteVersion}
-                />
-              )}
+              <VersionTree
+                vers={story.vers}
+                curV={story.curV}
+                secs={story.secs}
+                restore={handleRestore}
+                saveVersion={() => story.saveVersion("手动保存", { stage: "structure", kind: "edit" })}
+                toggleSaved={story.toggleSaved}
+                deleteVersion={story.deleteVersion}
+              />
             </div>
+            {!coachIntroSeen && !guideOpen && (
+              <StructureCoachmarks variant="intro" onYes={openGuide} onNo={markIntroSeen} />
+            )}
+            {guideOpen && (
+              <StructureCoachmarks
+                variant="full"
+                leftOpen={layout.leftOpen}
+                leftW={layout.leftW}
+                onClose={() => setGuideOpen(false)}
+              />
+            )}
           </div>
         )}
       </div>
@@ -419,26 +469,42 @@ const S = {
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
+    position: "relative",
+    background: "var(--color-background-tertiary)",
+  },
+  // 幻灯舞台：占满整列高度，底部留白让出浮层对话框空间
+  slideStage: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    padding: "14px 14px 96px",
   },
   previewWrap: {
-    padding: "14px 16px",
-    background: "var(--color-background-tertiary)",
-    borderBottom: "0.5px solid var(--color-border-tertiary)",
-    flexShrink: 0,
+    flex: 1,
+    minHeight: 0,
     position: "relative",
+    display: "flex",
+    flexDirection: "column",
+  },
+  // 等比缩放测量区：幻灯在此区域内居中并按可用空间缩放（含字号一起缩放，类 PPT）
+  slideFitArea: {
+    flex: 1,
+    minHeight: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   slideCard: {
     background: "var(--color-background-primary)",
-    borderRadius: 10,
+    borderRadius: 12,
     border: "0.5px solid var(--color-border-secondary)",
-    padding: "18px 22px",
-    maxWidth: 300,
-    margin: "0 auto",
-    aspectRatio: "16/10",
+    padding: "30px 38px",
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+    boxShadow: "0 6px 22px rgba(26,25,21,0.1)",
     overflow: "hidden",
   },
   refineRoot: {
@@ -1025,54 +1091,110 @@ function VisualCandidateCard({ item, active, best, onSelect, index = 0 }) {
   );
 }
 
+const SLIDE_BASE_W = 480;
+const SLIDE_BASE_H = 300;
+
 function StructureSlidePreview({ secs, sel, setSel, selPage, setSelPage, visual }) {
   const curSec = secs[sel];
   const curPage = curSec?.pages[selPage] || curSec?.pages[0];
   // 切章/翻页/内容被改写时都重新触发幻灯卡片入场动画，呼应意图对齐页的生动感
   const slideKey = `${sel}-${selPage}-${curPage?.h || ""}-${curPage?.b || ""}`;
+  const fitRef = useRef(null);
+  const [scale, setScale] = useState(0.6);
+
+  // 等比缩放：测量可用区域，把固定基准尺寸的幻灯整体缩放到刚好填满（含字号），随窗口实时变化
+  useEffect(() => {
+    const el = fitRef.current;
+    if (!el) return undefined;
+    const fit = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (!w || !h) return;
+      const next = Math.min(w / SLIDE_BASE_W, h / SLIDE_BASE_H);
+      if (Number.isFinite(next) && next > 0) setScale(Math.max(0.4, Math.min(1.8, next)));
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", fit);
+      return () => window.removeEventListener("resize", fit);
+    }
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   return (
     <div style={S.previewWrap}>
-      <div key={slideKey} className="anim-pop" style={{ ...S.slideCard, position: "relative" }}>
-        {visual?.image && (
-          <>
-            <img
-              src={visual.image}
-              alt=""
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-            />
-            {/* 半透明遮罩沿用章节配色，保证标题/正文清晰叠加在模板图之上 */}
-            <div style={{ position: "absolute", inset: 0, background: curSec?.bg || "#ffffff", opacity: 0.82 }} />
-          </>
-        )}
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ width: 28, height: 3, borderRadius: 2, background: curSec?.c, marginBottom: 10 }} />
-          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 5 }}>{curPage?.h}</div>
-          <div style={{ fontSize: 10, color: "var(--color-text-secondary)", lineHeight: 1.6 }}>{curPage?.b}</div>
-          <div style={{ display: "flex", gap: 4, marginTop: 12 }}>
-            {curSec?.pages.map((page, j) => (
-              <button
-                key={page.id}
-                type="button"
-                onClick={() => setSelPage(j)}
-                aria-label={`选择第 ${j + 1} 页`}
-                style={{
-                  flex: 1,
-                  height: 4,
-                  minWidth: 0,
-                  padding: 0,
-                  borderRadius: 2,
-                  background: j === selPage ? curSec.c : curSec.bg,
-                  border: `0.5px solid ${curSec.bd}`,
-                  cursor: "pointer",
-                  transition: "background 0.2s",
-                }}
-              />
-            ))}
+      <div ref={fitRef} style={S.slideFitArea}>
+        <div style={{ width: SLIDE_BASE_W * scale, height: SLIDE_BASE_H * scale, flexShrink: 0 }}>
+          <div
+            style={{
+              ...S.slideCard,
+              position: "relative",
+              width: SLIDE_BASE_W,
+              height: SLIDE_BASE_H,
+              padding: 0,
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+            }}
+          >
+            {/* 切页动画仅作用于内层内容，避免与外层等比缩放 transform 冲突导致大小/文字异常 */}
+            <div
+              key={slideKey}
+              className="anim-page-in"
+              style={{
+                position: "absolute",
+                inset: 0,
+                padding: "30px 38px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                overflow: "hidden",
+                borderRadius: 12,
+              }}
+            >
+            {visual?.image && (
+              <>
+                <img
+                  src={visual.image}
+                  alt=""
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+                />
+                {/* 半透明遮罩沿用章节配色，保证标题/正文清晰叠加在模板图之上 */}
+                <div style={{ position: "absolute", inset: 0, background: curSec?.bg || "#ffffff", opacity: 0.82 }} />
+              </>
+            )}
+            <div style={{ position: "relative", zIndex: 1 }}>
+              <div style={{ width: 46, height: 5, borderRadius: 3, background: curSec?.c, marginBottom: 16 }} />
+              <div style={{ fontSize: 23, fontWeight: 600, marginBottom: 9, lineHeight: 1.25 }}>{curPage?.h}</div>
+              <div style={{ fontSize: 14, color: "var(--color-text-secondary)", lineHeight: 1.7 }}>{curPage?.b}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 22 }}>
+                {curSec?.pages.map((page, j) => (
+                  <button
+                    key={page.id}
+                    type="button"
+                    onClick={() => setSelPage(j)}
+                    aria-label={`选择第 ${j + 1} 页`}
+                    style={{
+                      flex: 1,
+                      height: 6,
+                      minWidth: 0,
+                      padding: 0,
+                      borderRadius: 3,
+                      background: j === selPage ? curSec.c : curSec.bg,
+                      border: `0.5px solid ${curSec.bd}`,
+                      cursor: "pointer",
+                      transition: "background 0.2s",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            </div>
           </div>
         </div>
       </div>
-      <div style={{ display: "flex", justifyContent: "center", gap: 4, marginTop: 10 }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: 4, marginTop: 10, flexShrink: 0 }}>
         {secs.map((s, i) => (
           <button
             key={s.id}

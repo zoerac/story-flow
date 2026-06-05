@@ -49,6 +49,48 @@
   100% { box-shadow: 0 0 0 0 rgba(127, 119, 221, 0); }
 }
 
+/* 切页入场：淡入缩放增强版（比 anim-pop 更明显的"演示感"翻页） */
+@keyframes anim-page-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.92); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* AI 浮层气泡：浮现 / 自动淡出 */
+@keyframes anim-bubble-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes anim-bubble-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-6px) scale(0.97); }
+}
+
+/* 一次性引导：指针脉冲呼吸 */
+@keyframes anim-coach-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(127, 119, 221, 0.45); }
+  60%  { box-shadow: 0 0 0 7px rgba(127, 119, 221, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(127, 119, 221, 0); }
+}
+
+/* 引导虚线箭头：来回轻摆，强化指向感 */
+@keyframes anim-arrow-bob {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(-5px); }
+}
+
+/* 引导箭头（指向顶部工具栏）：竖直轻摆 */
+@keyframes anim-arrow-bob-y {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+
+/* 故事线把手：轻脉冲，提示可拖拽（仅引导未读时挂载） */
+@keyframes anim-drag-hint {
+  0%, 100% { opacity: 0.5; transform: translateX(0); }
+  50%      { opacity: 1;   transform: translateX(-1.5px); }
+}
+
 .anim-fade     { animation: anim-fade     var(--motion-base) var(--ease-out) both; }
 .anim-fade-up  { animation: anim-fade-up  var(--motion-base) var(--ease-out) both; }
 .anim-scale    { animation: anim-scale    var(--motion-base) var(--ease-out) both; }
@@ -56,6 +98,13 @@
 .anim-blink    { animation: anim-blink 1.2s ease-in-out infinite; }
 .anim-slide-in-right { animation: anim-slide-in-right var(--motion-slow) var(--ease-out) both; }
 .anim-highlight      { animation: anim-highlight 900ms var(--ease-out); }
+.anim-page-in        { animation: anim-page-in   var(--motion-base) var(--ease-out) both; }
+.anim-bubble-in      { animation: anim-bubble-in var(--motion-base) var(--ease-out) both; }
+.anim-bubble-out     { animation: anim-bubble-out var(--motion-fast) var(--ease-out) both; }
+.anim-coach-pulse    { animation: anim-coach-pulse 1.8s ease-in-out infinite; }
+.anim-arrow-bob      { animation: anim-arrow-bob 1.2s ease-in-out infinite; }
+.anim-arrow-bob-y    { animation: anim-arrow-bob-y 1.2s ease-in-out infinite; }
+.anim-drag-hint      { animation: anim-drag-hint 1.6s ease-in-out infinite; }
 
 .anim-progress-bar {
   position: absolute;
@@ -72,7 +121,14 @@
   .anim-blink,
   .anim-slide-in-right,
   .anim-highlight,
-  .anim-progress-bar {
+  .anim-progress-bar,
+  .anim-page-in,
+  .anim-bubble-in,
+  .anim-bubble-out,
+  .anim-coach-pulse,
+  .anim-arrow-bob,
+  .anim-arrow-bob-y,
+  .anim-drag-hint {
     animation: none;
   }
 }

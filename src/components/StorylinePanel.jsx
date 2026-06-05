@@ -15,6 +15,8 @@ export function StorylinePanel({
   onMergeSection,
   onSplitPage,
   commitVersion,
+  dragHint = false,
+  onInteract,
 }) {
   const [openIds, setOpenIds] = useState(() => new Set([secs[0]?.id].filter(Boolean)));
   const [pageDrag, setPageDrag] = useState(null);
@@ -54,177 +56,288 @@ export function StorylinePanel({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", borderRight: "0.5px solid var(--color-border-tertiary)" }}>
+    <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", borderRight: "0.5px solid var(--color-border-tertiary)", height: "100%" }}>
       <div style={panelHead}>
-        <BookOpen size={14} /> 故事线
+        <BookOpen size={14} style={{ color: "#7F77DD" }} /> 故事线
         <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--color-text-tertiary)", fontWeight: 400 }}>
-          {pageCount}p
+          {secs.length} 章 · {pageCount} 页
         </span>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: 8 }}>
-        {secs.map((s, i) => (
-          <div
-            key={s.id}
-            className="anim-fade-up"
-            draggable
-            onDragStart={() => setDragI(i)}
-            onDragOver={(e) => {
-              e.preventDefault();
-              // 指针落在卡片中间 ~40% → 合并为子页；上下边缘 → 重排序
-              if (dragI === null || dragI === i) {
-                setOverI(i);
+      <div style={{ flex: 1, overflowY: "auto", padding: "10px 10px 10px 6px" }}>
+        {secs.map((s, i) => {
+          const active = i === sel;
+          const isMergeTarget = mergeOverI === i && dragI !== null && dragI !== i;
+          const isReorderTarget = overI === i && dragI !== null && dragI !== i;
+          const open = openIds.has(s.id);
+          const isLast = i === secs.length - 1;
+
+          return (
+            <div
+              key={s.id}
+              className="anim-fade-up"
+              draggable
+              onDragStart={() => {
+                setDragI(i);
+                onInteract?.();
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                // 指针落在卡片中间 ~40% → 合并为子页；上下边缘 → 重排序
+                if (dragI === null || dragI === i) {
+                  setOverI(i);
+                  setMergeOverI(null);
+                  return;
+                }
+                const rect = e.currentTarget.getBoundingClientRect();
+                const ratio = (e.clientY - rect.top) / rect.height;
+                if (ratio > 0.3 && ratio < 0.7) {
+                  setMergeOverI(i);
+                  setOverI(null);
+                } else {
+                  setOverI(i);
+                  setMergeOverI(null);
+                }
+              }}
+              onDrop={() => {
+                if (mergeOverI === i && dragI !== null && dragI !== i) {
+                  onMergeSection?.(dragI, i);
+                } else {
+                  onDrop(i);
+                }
                 setMergeOverI(null);
-                return;
-              }
-              const rect = e.currentTarget.getBoundingClientRect();
-              const ratio = (e.clientY - rect.top) / rect.height;
-              if (ratio > 0.3 && ratio < 0.7) {
-                setMergeOverI(i);
+              }}
+              onDragEnd={() => {
+                setDragI(null);
                 setOverI(null);
-              } else {
-                setOverI(i);
                 setMergeOverI(null);
-              }
-            }}
-            onDrop={() => {
-              if (mergeOverI === i && dragI !== null && dragI !== i) {
-                onMergeSection?.(dragI, i);
-              } else {
-                onDrop(i);
-              }
-              setMergeOverI(null);
-            }}
-            onDragEnd={() => {
-              setDragI(null);
-              setOverI(null);
-              setMergeOverI(null);
-            }}
-            onClick={() => {
-              setSel(i);
-              setSelPage(0);
-            }}
-            style={{
-              animationDelay: `${Math.min(i * 40, 240)}ms`,
-              padding: "8px 10px",
-              marginBottom: 4,
-              borderRadius: 8,
-              cursor: dragI !== null ? "grabbing" : "grab",
-              background:
-                dragI === i
-                  ? "var(--color-background-tertiary)"
-                  : mergeOverI === i && dragI !== null && dragI !== i
-                    ? s.bg
-                    : i === sel
-                      ? s.bg
-                      : "transparent",
-              border:
-                mergeOverI === i && dragI !== null && dragI !== i
-                  ? `2px solid ${s.c}`
-                  : overI === i && dragI !== null && dragI !== i
-                    ? `2px dashed ${s.c}`
-                    : i === sel
-                      ? `1.5px solid ${s.bd}`
-                      : "1.5px solid transparent",
-              opacity: dragI === i ? 0.35 : 1,
-              transition: "background 0.12s, border 0.12s, opacity 0.12s",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleOpen(s.id);
-                }}
-                aria-label={openIds.has(s.id) ? "收起子页" : "展开子页"}
+              }}
+              onClick={() => {
+                setSel(i);
+                setSelPage(0);
+                onInteract?.();
+              }}
+              style={{
+                display: "flex",
+                alignItems: "stretch",
+                gap: 0,
+                cursor: dragI !== null ? "grabbing" : "grab",
+                opacity: dragI === i ? 0.35 : 1,
+                transition: "opacity 0.12s",
+              }}
+            >
+              {/* 时间轴脊线 + 编号节点 */}
+              <div style={{ width: 30, position: "relative", flexShrink: 0 }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 14,
+                    // 非末章：贯穿整行连到下一节点；末章：仅画到节点附近，避免拖尾
+                    top: 0,
+                    bottom: isLast ? "auto" : 0,
+                    height: isLast ? 33 : "auto",
+                    width: 2,
+                    background: active ? s.c : "var(--color-border-secondary)",
+                    opacity: active ? 0.55 : 1,
+                  }}
+                />
+                <span
+                  className={dragHint && i === 0 ? "anim-coach-pulse" : undefined}
+                  style={{
+                    position: "absolute",
+                    left: 3,
+                    top: 9,
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: active ? s.c : "var(--color-background-primary)",
+                    border: `2px solid ${active ? s.c : s.bd}`,
+                    color: active ? "#fff" : s.c,
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    boxShadow: active ? `0 2px 8px ${s.bg}` : "none",
+                    transition: "background 0.15s, border 0.15s, color 0.15s",
+                  }}
+                >
+                  {i + 1}
+                </span>
+              </div>
+
+              {/* 章节主体卡片 */}
+              <div
                 style={{
-                  width: 14,
-                  height: 14,
-                  padding: 0,
-                  border: 0,
-                  background: "transparent",
-                  color: "var(--color-text-tertiary)",
-                  display: "grid",
-                  placeItems: "center",
-                  cursor: "pointer",
-                  flexShrink: 0,
+                  flex: 1,
+                  minWidth: 0,
+                  marginBottom: 6,
+                  padding: "8px 10px",
+                  borderRadius: 9,
+                  background: isMergeTarget ? s.bg : active ? s.bg : "transparent",
+                  border: isMergeTarget
+                    ? `2px solid ${s.c}`
+                    : isReorderTarget
+                      ? `2px dashed ${s.c}`
+                      : active
+                        ? `1.5px solid ${s.bd}`
+                        : "1.5px solid transparent",
+                  boxShadow: active ? `0 2px 10px rgba(26,25,21,0.05)` : "none",
+                  transition: "background 0.12s, border 0.12s, box-shadow 0.15s",
                 }}
               >
-                {openIds.has(s.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              </button>
-              <GripVertical size={12} style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }} />
-              <div style={{ width: 7, height: 7, borderRadius: "50%", background: s.c, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 500 }}>{s.title}</span>
-              {mergeOverI === i && dragI !== null && dragI !== i && (
-                <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 600, color: s.c, flexShrink: 0 }}>
-                  并入此章 ↵
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", marginTop: 2, marginLeft: 25 }}>
-              {s.sub}
-            </div>
-            {openIds.has(s.id) && (
-              <div style={{ marginTop: 7, marginLeft: 25, display: "grid", gap: 3 }}>
-                {s.pages.map((page, pageIndex) => {
-                  const active = i === sel && pageIndex === selPage;
-                  const over =
-                    pageOver?.sectionIndex === i &&
-                    pageOver?.pageIndex === pageIndex &&
-                    pageDrag?.pageIndex !== pageIndex;
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                  <GripVertical
+                    size={13}
+                    className={dragHint && i === 0 ? "anim-drag-hint" : undefined}
+                    style={{ color: dragHint && i === 0 ? "#7F77DD" : "var(--color-text-tertiary)", flexShrink: 0, cursor: "grab", marginTop: 2 }}
+                  />
+                  <span
+                    title={s.title}
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                      flex: 1,
+                      minWidth: 0,
+                      lineHeight: 1.35,
+                      // 选中章节标题折行完整展示，未选中单行省略；overflow 始终 hidden + overflowWrap 兜底，绝不超出面板宽度
+                      whiteSpace: active ? "normal" : "nowrap",
+                      overflow: "hidden",
+                      textOverflow: active ? "clip" : "ellipsis",
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {s.title}
+                  </span>
+                  {isMergeTarget && (
+                    <span style={{ fontSize: 9, fontWeight: 600, color: s.c, flexShrink: 0 }}>并入此章 ↵</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleOpen(s.id);
+                    }}
+                    aria-label={open ? "收起子页" : "展开子页"}
+                    style={{
+                      width: 16,
+                      height: 16,
+                      padding: 0,
+                      border: 0,
+                      background: "transparent",
+                      color: "var(--color-text-tertiary)",
+                      display: "grid",
+                      placeItems: "center",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                      marginTop: 1,
+                    }}
+                  >
+                    {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                  </button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, marginLeft: 19 }}>
+                  <span title={s.sub} style={{ fontSize: 10, color: "var(--color-text-tertiary)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {s.sub}
+                  </span>
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 9,
+                      fontWeight: 600,
+                      color: s.c,
+                      background: s.bg,
+                      border: `0.5px solid ${s.bd}`,
+                      borderRadius: 5,
+                      padding: "1px 6px",
+                    }}
+                  >
+                    {s.pages.length} 页
+                  </span>
+                </div>
 
-                  return (
-                    <div
-                      key={page.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.stopPropagation();
-                        setPageDrag({ sectionIndex: i, pageIndex });
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setPageOver({ sectionIndex: i, pageIndex });
-                      }}
-                      onDrop={(e) => {
-                        e.stopPropagation();
-                        onPageDrop(i, pageIndex);
-                      }}
-                      onDragEnd={(e) => {
-                        e.stopPropagation();
-                        setPageDrag(null);
-                        setPageOver(null);
-                        setSplitOver(false);
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSel(i);
-                        setSelPage(pageIndex);
-                      }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "5px 7px",
-                        borderRadius: 6,
-                        background: active ? "rgba(255,255,255,0.6)" : "transparent",
-                        border: over ? `1px dashed ${s.c}` : active ? `1px solid ${s.bd}` : "1px solid transparent",
-                        cursor: "grab",
-                        color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                        opacity: pageDrag?.sectionIndex === i && pageDrag?.pageIndex === pageIndex ? 0.45 : 1,
-                      }}
-                    >
-                      <GripVertical size={10} style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }} />
-                      <span style={{ fontSize: 10, fontWeight: active ? 500 : 400, lineHeight: 1.35 }}>
-                        {pageIndex + 1}. {page.h}
-                      </span>
-                    </div>
-                  );
-                })}
+                {open && (
+                  <div style={{ marginTop: 8, marginLeft: 19, display: "grid", gap: 3 }}>
+                    {s.pages.map((page, pageIndex) => {
+                      const pageActive = i === sel && pageIndex === selPage;
+                      const over =
+                        pageOver?.sectionIndex === i &&
+                        pageOver?.pageIndex === pageIndex &&
+                        pageDrag?.pageIndex !== pageIndex;
+
+                      return (
+                        <div
+                          key={page.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.stopPropagation();
+                            setPageDrag({ sectionIndex: i, pageIndex });
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPageOver({ sectionIndex: i, pageIndex });
+                          }}
+                          onDrop={(e) => {
+                            e.stopPropagation();
+                            onPageDrop(i, pageIndex);
+                          }}
+                          onDragEnd={(e) => {
+                            e.stopPropagation();
+                            setPageDrag(null);
+                            setPageOver(null);
+                            setSplitOver(false);
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSel(i);
+                            setSelPage(pageIndex);
+                            onInteract?.();
+                          }}
+                          style={{
+                            display: "flex",
+                            // 顶部对齐：选中页标题换行成多行时，圆点/手柄仍贴第一行文字，不会飘到正中
+                            alignItems: "flex-start",
+                            gap: 6,
+                            padding: "5px 8px",
+                            borderRadius: 6,
+                            background: pageActive ? "var(--color-background-primary)" : "transparent",
+                            border: over ? `1px dashed ${s.c}` : pageActive ? `1px solid ${s.bd}` : "1px solid transparent",
+                            cursor: "grab",
+                            color: pageActive ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                            opacity: pageDrag?.sectionIndex === i && pageDrag?.pageIndex === pageIndex ? 0.45 : 1,
+                          }}
+                        >
+                          <span style={{ width: 4, height: 4, borderRadius: "50%", background: pageActive ? s.c : "var(--color-border-secondary)", flexShrink: 0, marginTop: 5 }} />
+                          <GripVertical size={10} style={{ color: "var(--color-text-tertiary)", flexShrink: 0, marginTop: 2 }} />
+                          <span
+                            title={page.h}
+                            style={{
+                              fontSize: 10,
+                              fontWeight: pageActive ? 600 : 400,
+                              lineHeight: 1.35,
+                              flex: 1,
+                              minWidth: 0,
+                              // 选中页标题折行完整展示，未选中单行省略；overflow 始终 hidden + overflowWrap 兜底，绝不超出面板宽度
+                              whiteSpace: pageActive ? "normal" : "nowrap",
+                              overflow: "hidden",
+                              textOverflow: pageActive ? "clip" : "ellipsis",
+                              overflowWrap: "anywhere",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {pageIndex + 1}. {page.h}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
+
         {canSplit && (
           <div
             onDragOver={(e) => {
@@ -243,6 +356,7 @@ export function StorylinePanel({
             }}
             style={{
               marginTop: 8,
+              marginLeft: 30,
               padding: "12px 10px",
               borderRadius: 8,
               border: `1.5px dashed ${splitOver ? "var(--color-text-secondary)" : "var(--color-border-secondary)"}`,
@@ -270,6 +384,6 @@ const panelHead = {
   gap: 6,
   flexShrink: 0,
   fontSize: 12,
-  fontWeight: 500,
+  fontWeight: 600,
   color: "var(--color-text-secondary)",
 };
