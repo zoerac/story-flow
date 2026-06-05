@@ -79,6 +79,12 @@
   50%      { transform: translateX(-5px); }
 }
 
+/* 引导箭头（指向顶部工具栏）：竖直轻摆 */
+@keyframes anim-arrow-bob-y {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+
 /* 故事线把手：轻脉冲，提示可拖拽（仅引导未读时挂载） */
 @keyframes anim-drag-hint {
   0%, 100% { opacity: 0.5; transform: translateX(0); }
@@ -97,6 +103,7 @@
 .anim-bubble-out     { animation: anim-bubble-out var(--motion-fast) var(--ease-out) both; }
 .anim-coach-pulse    { animation: anim-coach-pulse 1.8s ease-in-out infinite; }
 .anim-arrow-bob      { animation: anim-arrow-bob 1.2s ease-in-out infinite; }
+.anim-arrow-bob-y    { animation: anim-arrow-bob-y 1.2s ease-in-out infinite; }
 .anim-drag-hint      { animation: anim-drag-hint 1.6s ease-in-out infinite; }
 
 .anim-progress-bar {
@@ -120,6 +127,7 @@
   .anim-bubble-out,
   .anim-coach-pulse,
   .anim-arrow-bob,
+  .anim-arrow-bob-y,
   .anim-drag-hint {
     animation: none;
   }
