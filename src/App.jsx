@@ -127,9 +127,9 @@ function App() {
           <div key="visual" className="anim-fade-up" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <VisualSelectionPage
               onGenerate={(visual) => {
-                const nextSecs = applyVisualToSections(visual, story.secs);
-                story.setVisual(visual);
-                story.setSecs(nextSecs);
+                const intentBase = story.vers.find((v) => v.id === "v1")?.snap || story.secs;
+                const nextSecs = applyVisualToSections(visual, intentBase);
+                story.commitVersion(`主视觉·${visual.title}`, nextSecs, { stage: "visual", kind: "edit", visual, parentId: "v1" });
                 story.setSel(0);
                 story.setSelPage(0);
                 story.addMsg("sys", `已选择主视觉「${visual.title}」，并生成结构编辑初稿。`);

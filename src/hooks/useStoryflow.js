@@ -11,6 +11,7 @@ export function useStoryflow() {
       snap: cloneSections(INIT),
       par: null,
       ch: [],
+      visual: null,
       stage: "intent",
       kind: "init",
     },
@@ -43,10 +44,17 @@ export function useStoryflow() {
   };
 
   const commitVersion = (label, nextSecs, meta = {}) => {
+    const { parentId: metaParentId, visual: metaVisual, ...restMeta } = meta;
+    const hasMetaVisual = Object.prototype.hasOwnProperty.call(meta, "visual");
+    const nextVisual = cloneVisual(hasMetaVisual ? metaVisual : visual);
+    const parentId = metaParentId && vers.some((v) => v.id === metaParentId) ? metaParentId : curV;
     // 去重护栏：内容与当前版本完全相同则不新建节点，避免冗余节点
     const cur = vers.find((v) => v.id === curV);
-    if (cur && JSON.stringify(cur.snap) === JSON.stringify(nextSecs)) {
+    const sameSnap = cur && JSON.stringify(cur.snap) === JSON.stringify(nextSecs);
+    const sameVisual = cur && JSON.stringify(cur.visual ?? null) === JSON.stringify(nextVisual);
+    if (sameSnap && sameVisual) {
       setSecs(cloneSections(nextSecs));
+      setVisual(nextVisual);
       return;
     }
 
@@ -54,12 +62,26 @@ export function useStoryflow() {
     const snap = cloneSections(nextSecs);
     setVers((prev) => {
       const withChild = prev.map((v) =>
-        v.id === curV ? { ...v, ch: [...v.ch, vid] } : v,
+        v.id === parentId ? { ...v, ch: [...v.ch, vid] } : v,
       );
-      return [...withChild, { id: vid, label, snap, par: curV, ch: [], stage: meta.stage || "structure", kind: meta.kind || "edit", ...meta }];
+      return [
+        ...withChild,
+        {
+          id: vid,
+          label,
+          snap,
+          par: parentId,
+          ch: [],
+          visual: nextVisual,
+          stage: restMeta.stage || "structure",
+          kind: restMeta.kind || "edit",
+          ...restMeta,
+        },
+      ];
     });
     setCurV(vid);
     setSecs(cloneSections(nextSecs));
+    setVisual(nextVisual);
   };
 
   const onDrop = (to) => {
@@ -165,15 +187,19 @@ export function useStoryflow() {
     addMsg("ai", summary, { label: "撤销拆分", undoTo });
   };
 
-  // 用意图对齐阶段约定好的故事线作为编辑器种子：重置工作态与版本树根节点 v0
+  // 用意图对齐阶段约定好的故事线作为编辑器种子：固定 v1 为主视觉分叉基准
   const seedStoryline = (sections) => {
     if (!sections?.length) return;
-    setSecs(cloneSections(sections));
+    const initialSnap = cloneSections(INIT);
+    const intentSnap = cloneSections(sections);
+    setSecs(cloneSections(intentSnap));
     setVers([
-      { id: "v0", label: "初始生成", snap: cloneSections(sections), par: null, ch: [], stage: "intent", kind: "init" },
+      { id: "v0", label: "初始生成", snap: initialSnap, par: null, ch: ["v1"], visual: null, stage: "intent", kind: "init" },
+      { id: "v1", label: "意图对齐", snap: intentSnap, par: "v0", ch: [], visual: null, stage: "visual", kind: "edit" },
     ]);
-    setCurV("v0");
-    vc.current = 1;
+    setCurV("v1");
+    vc.current = 2;
+    setVisual(null);
     setSel(0);
     setSelPage(0);
   };
@@ -183,6 +209,7 @@ export function useStoryflow() {
     if (!v) return;
 
     setSecs(cloneSections(v.snap));
+    setVisual(cloneVisual(v.visual));
     setCurV(vid);
     setSel(0);
     setSelPage(0);
@@ -233,6 +260,7 @@ export function useStoryflow() {
     if (removed.has(curV)) {
       setCurV(parentId);
       setSecs(cloneSections(byId[parentId].snap));
+      setVisual(cloneVisual(byId[parentId].visual));
     }
     addMsg("sys", `已删除版本「${target.label}」${mode === "subtree" ? "及其子树" : "（子节点已上接父级）"}。`);
     return true;
@@ -304,3 +332,5 @@ export function useStoryflow() {
     chatEnd,
   };
 }
+
+const cloneVisual = (item) => (item ? structuredClone(item) : null);
