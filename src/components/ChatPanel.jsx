@@ -14,10 +14,12 @@ const LEAVE_MS = 180;
 export function ChatPanel({ msgs, send, thinking, chatEnd, restore, dragI, focusedSection, setFocusedSection, addMsg, secs }) {
   const [inp, setInp] = useState("");
   const [localThinking, setLocalThinking] = useState(false);
-  const [bubbles, setBubbles] = useState([]); // { key, from, text, action, leaving, pinned }
+  const [bubbles, setBubbles] = useState([]); // { key, from, text, action, leaving }
   const [historyOpen, setHistoryOpen] = useState(false);
   const [dropActive, setDropActive] = useState(false);
-  const seen = useRef(0);
+  // 以"挂载时已有的消息数"为基线：进入/重入面板时不把既有历史重放成气泡（避免"突然闪一下"），
+  // 只有挂载之后新到达的消息才浮现。
+  const seen = useRef(msgs.length);
   const timers = useRef({});
 
   const scheduleDismiss = (key) => {
@@ -43,19 +45,15 @@ export function ChatPanel({ msgs, send, thinking, chatEnd, restore, dragI, focus
   useEffect(() => () => Object.values(timers.current).forEach(clearTimeout), []);
 
   const pauseDismiss = (key) => clearTimeout(timers.current[key]);
-  const resumeDismiss = (key, pinned) => {
-    if (!pinned) scheduleDismiss(key);
-  };
-  const togglePin = (key) => {
-    setBubbles((prev) =>
-      prev.map((b) => {
-        if (b.key !== key) return b;
-        const pinned = !b.pinned;
-        if (pinned) clearTimeout(timers.current[key]);
-        else scheduleDismiss(key);
-        return { ...b, pinned, leaving: false };
-      }),
-    );
+  const resumeDismiss = (key) => scheduleDismiss(key);
+  // 手动关闭：立即播放淡出再移除，让用户随时能关掉气泡
+  const closeBubble = (key) => {
+    clearTimeout(timers.current[key]);
+    setBubbles((prev) => prev.map((b) => (b.key === key ? { ...b, leaving: true } : b)));
+    timers.current[key] = setTimeout(() => {
+      setBubbles((prev) => prev.filter((b) => b.key !== key));
+      delete timers.current[key];
+    }, LEAVE_MS);
   };
 
   const handleDrop = (e) => {
@@ -125,9 +123,9 @@ export function ChatPanel({ msgs, send, thinking, chatEnd, restore, dragI, focus
                 key={b.key}
                 bubble={b}
                 restore={restore}
-                onPin={() => togglePin(b.key)}
+                onClose={() => closeBubble(b.key)}
                 onPause={() => pauseDismiss(b.key)}
-                onResume={() => resumeDismiss(b.key, b.pinned)}
+                onResume={() => resumeDismiss(b.key)}
               />
             ))}
             {isThinking && (
@@ -225,7 +223,7 @@ export function ChatPanel({ msgs, send, thinking, chatEnd, restore, dragI, focus
   );
 }
 
-function FloatingBubble({ bubble, restore, onPin, onPause, onResume }) {
+function FloatingBubble({ bubble, restore, onClose, onPause, onResume }) {
   const isUser = bubble.from === "user";
   return (
     <div style={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start" }}>
@@ -233,28 +231,30 @@ function FloatingBubble({ bubble, restore, onPin, onPause, onResume }) {
         className={bubble.leaving ? "anim-bubble-out" : "anim-bubble-in"}
         onMouseEnter={onPause}
         onMouseLeave={onResume}
-        onClick={onPin}
-        title={bubble.pinned ? "已固定（点击取消）" : "点击固定此气泡"}
         style={{
           display: "flex",
           flexDirection: "column",
           alignItems: isUser ? "flex-end" : "flex-start",
           maxWidth: "82%",
-          cursor: "pointer",
         }}
       >
         <div
           style={{
             ...bubbleBase,
             ...(bubble.from === "user" ? userBubble : bubble.from === "sys" ? sysBubble : aiBubble),
+            position: "relative",
+            paddingRight: 24,
             borderBottomRightRadius: isUser ? 3 : 12,
             borderBottomLeftRadius: !isUser ? 3 : 12,
-            boxShadow: bubble.pinned ? "0 0 0 1.5px #CECBF6, 0 6px 18px rgba(26,25,21,0.12)" : "0 6px 18px rgba(26,25,21,0.1)",
+            boxShadow: "0 6px 18px rgba(26,25,21,0.1)",
           }}
         >
           {bubble.from === "sys" && <RotateCcw size={10} style={{ marginRight: 4, verticalAlign: -1 }} />}
           {bubble.from === "ai" && bubble.key > 0 && <Sparkles size={10} style={{ marginRight: 4, verticalAlign: -1 }} />}
           {bubble.text}
+          <button type="button" onClick={onClose} aria-label="关闭气泡" title="关闭" style={bubbleClose}>
+            <X size={11} />
+          </button>
         </div>
         {bubble.action && (
           <button
@@ -336,6 +336,25 @@ const bubbleBase = {
 const userBubble = { background: "#EEEDFE", color: "#3C3489" };
 const aiBubble = { background: "#E1F5EE", color: "#085041" };
 const sysBubble = { background: "var(--color-background-secondary)", color: "var(--color-text-tertiary)", fontStyle: "italic" };
+
+// 气泡常驻关闭按钮：右上角，半透明随气泡配色，悬停加深
+const bubbleClose = {
+  position: "absolute",
+  top: 4,
+  right: 4,
+  width: 16,
+  height: 16,
+  padding: 0,
+  border: "none",
+  background: "transparent",
+  color: "currentColor",
+  opacity: 0.45,
+  display: "grid",
+  placeItems: "center",
+  cursor: "pointer",
+  borderRadius: 4,
+  lineHeight: 0,
+};
 
 const undoBtn = {
   marginTop: 3,

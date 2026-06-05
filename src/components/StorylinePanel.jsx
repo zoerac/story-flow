@@ -184,11 +184,11 @@ export function StorylinePanel({
                   transition: "background 0.12s, border 0.12s, box-shadow 0.15s",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
                   <GripVertical
                     size={13}
                     className={dragHint && i === 0 ? "anim-drag-hint" : undefined}
-                    style={{ color: dragHint && i === 0 ? "#7F77DD" : "var(--color-text-tertiary)", flexShrink: 0, cursor: "grab" }}
+                    style={{ color: dragHint && i === 0 ? "#7F77DD" : "var(--color-text-tertiary)", flexShrink: 0, cursor: "grab", marginTop: 2 }}
                   />
                   <span
                     title={s.title}
@@ -199,10 +199,11 @@ export function StorylinePanel({
                       flex: 1,
                       minWidth: 0,
                       lineHeight: 1.35,
-                      // 选中章节标题完整换行展示，未选中保持单行省略，避免点击后被截断看不全
+                      // 选中章节标题折行完整展示，未选中单行省略；overflow 始终 hidden + overflowWrap 兜底，绝不超出面板宽度
                       whiteSpace: active ? "normal" : "nowrap",
-                      overflow: active ? "visible" : "hidden",
+                      overflow: "hidden",
                       textOverflow: active ? "clip" : "ellipsis",
+                      overflowWrap: "anywhere",
                       wordBreak: "break-word",
                     }}
                   >
@@ -229,6 +230,7 @@ export function StorylinePanel({
                       placeItems: "center",
                       cursor: "pointer",
                       flexShrink: 0,
+                      marginTop: 1,
                     }}
                   >
                     {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -294,7 +296,8 @@ export function StorylinePanel({
                           }}
                           style={{
                             display: "flex",
-                            alignItems: "center",
+                            // 顶部对齐：选中页标题换行成多行时，圆点/手柄仍贴第一行文字，不会飘到正中
+                            alignItems: "flex-start",
                             gap: 6,
                             padding: "5px 8px",
                             borderRadius: 6,
@@ -305,8 +308,8 @@ export function StorylinePanel({
                             opacity: pageDrag?.sectionIndex === i && pageDrag?.pageIndex === pageIndex ? 0.45 : 1,
                           }}
                         >
-                          <span style={{ width: 4, height: 4, borderRadius: "50%", background: pageActive ? s.c : "var(--color-border-secondary)", flexShrink: 0 }} />
-                          <GripVertical size={10} style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }} />
+                          <span style={{ width: 4, height: 4, borderRadius: "50%", background: pageActive ? s.c : "var(--color-border-secondary)", flexShrink: 0, marginTop: 5 }} />
+                          <GripVertical size={10} style={{ color: "var(--color-text-tertiary)", flexShrink: 0, marginTop: 2 }} />
                           <span
                             title={page.h}
                             style={{
@@ -315,10 +318,11 @@ export function StorylinePanel({
                               lineHeight: 1.35,
                               flex: 1,
                               minWidth: 0,
-                              // 选中页标题完整换行展示，避免点击加粗后被省略号截断看不全
+                              // 选中页标题折行完整展示，未选中单行省略；overflow 始终 hidden + overflowWrap 兜底，绝不超出面板宽度
                               whiteSpace: pageActive ? "normal" : "nowrap",
-                              overflow: pageActive ? "visible" : "hidden",
+                              overflow: "hidden",
                               textOverflow: pageActive ? "clip" : "ellipsis",
+                              overflowWrap: "anywhere",
                               wordBreak: "break-word",
                             }}
                           >
